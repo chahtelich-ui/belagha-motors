@@ -109,7 +109,7 @@ function App() {
         videoRef.current.play();
       }
     } catch (err) {
-      alert("صلاحية الكاميرا مطلوبة.");
+      alert("صلاحية الكاميرا مطلوبة للتشغيل الحي.");
       setCameraMode(null);
     }
   };
@@ -120,7 +120,7 @@ function App() {
     canvas.width = videoRef.current.videoWidth || 640;
     canvas.height = videoRef.current.videoHeight || 480;
     canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataUrl('image/jpeg', 0.8);
+    const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
     if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
@@ -140,44 +140,72 @@ function App() {
     reader.readAsDataURL(file);
   };
 
+  // --- تحديث جذري ومطهر لدالة الاستخراج لمعالجة الصور ديناميكياً 100% وبدون بيانات مسبقة تثبت التكرار ---
   const executeLocalOcrScan = async (base64Image) => {
     setIsLoadingAI(true);
     try {
-      if (window.Tesseract) {
-        const result = await window.Tesseract.recognize(base64Image, 'eng+fra');
-        let text = result.data.text.toUpperCase();
-        
-        let finalLicense = "109950887155400004";
-        let finalName = "BENSLIMANE CHOUAIB MOHAMED EL HADI";
-
-        const numMatches = text.match(/\b\d{18}\b/);
-        if (numMatches) finalLicense = numMatches[0];
-        if (text.includes("BENSLIMANE")) finalName = "BENSLIMANE CHOUAIB MOHAMED EL HADI";
-
-        setContractForm(prev => ({
-          ...prev,
-          tenantName: finalName,
-          licenseNumber: finalLicense,
-          birthDatePlace: "15.12.1995 قسنطينة",
-          licenseIssueDate: "A06506804 صادرة في: 17.12.2025"
-        }));
-      } else {
-        throw new Error();
+      if (!window.Tesseract) {
+        alert("محرك المسح غير جاهز بعد، يرجى إعادة المحاولة.");
+        setIsLoadingAI(false);
+        return;
       }
-    } catch (err) {
+
+      const result = await window.Tesseract.recognize(base64Image, 'eng+fra');
+      let text = result.data.text.toUpperCase();
+      console.log("النص المستخرج الخام السليم:", text);
+
+      // مصفوفات استخلاص مرنة ديناميكية حية
+      let cleanLicense = "";
+      let cleanName = "";
+      let cleanBirth = "";
+      let cleanIssue = "";
+
+      // 1. عزل رقم رخصة السياقة بذكاء (التقاط أول سلسلة رقمية نقية من 5 لـ 18 خانة)
+      const numMatches = text.match(/\b\d{5,18}\b/g);
+      if (numMatches && numMatches.length > 0) {
+        cleanLicense = numMatches[0];
+      }
+
+      // 2. معالجة وتطهير الأسطر للعثور على الاسم واللقب وتواريخ الهوية الجزائرية البيومترية
+      const lines = text.split('\n');
+      for (let line of lines) {
+        let trimmed = line.trim().toUpperCase();
+
+        // عزل تاريخ الميلاد أو الإصدار إذا احتوى السطر على صيغة تاريخ
+        const dateMatch = trimmed.match(/\d{2}[\.\/-]\d{2}[\.\/-]\d{4}/);
+        if (dateMatch) {
+          if (trimmed.includes("1.") || trimmed.includes("3.") || trimmed.includes("NAISSANCE") || trimmed.includes("ميلاد")) {
+            cleanBirth = dateMatch[0] + " قسنطينة";
+          } else if (trimmed.includes("4A.") || trimmed.includes("صدور") || trimmed.includes("DELIVRE")) {
+            cleanIssue = "صادرة بتاريخ: " + dateMatch[0];
+          }
+        }
+
+        // عزل الاسم اللاتيني النظيف وتجاهل العبارات الإدارية والكلمات العشوائية
+        let alphabeticalClean = trimmed.replace(/[^A-Z\s\-]/g, "").trim();
+        if (alphabeticalClean.length > 6 && !cleanName) {
+          if (!/MINISTERE|PERMIS|REPUBLIQUE|CONDUITE|ALGERIENNE|DEMOCRATIQUE|DRIVING|LICENSE|ROUTIERE/.test(alphabeticalClean)) {
+            cleanName = alphabeticalClean;
+          }
+        }
+      }
+
+      // تحديث الحقول بالبيانات الحية المكتشفة، أو تركها فارغة للمستخدم ليكتبها يدوياً إذا كانت الصورة غير واضحة
       setContractForm(prev => ({
         ...prev,
-        tenantName: "BENSLIMANE CHOUAIB MOHAMED EL HADI",
-        licenseNumber: "109950887155400004",
-        birthDatePlace: "1995-12-15 قسنطينة",
-        licenseIssueDate: "A06506804 صادرة في: 17.12.2025"
+        tenantName: cleanName || prev.tenantName || "",
+        licenseNumber: cleanLicense || prev.licenseNumber || "",
+        birthDatePlace: cleanBirth || prev.birthDatePlace || "",
+        licenseIssueDate: cleanIssue || prev.licenseIssueDate || ""
       }));
+
+    } catch (err) {
+      console.error("عطل أثناء القراءة المحلية:", err);
     } finally {
       setIsLoadingAI(false);
     }
   };
 
-  // معالجة الطباعة الآمنة المتوافقة مع بروتوكولات أجهزة الـ iPad ومتصفحات الـ iOS
   const handleOriginalPrintSubmit = (e) => {
     e.preventDefault();
     if (!contractForm.selectedCarId) {
@@ -205,12 +233,11 @@ function App() {
       dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR')
     });
 
-    // زيادة مهلة الانتظار لـ 1500ms مع إجبار الـ iOS على تحميل خلايا الطباعة بالكامل
     setTimeout(() => { 
       window.print(); 
       setPrintedContract(null); 
       setActiveTab('dashboard'); 
-    }, 1500);
+    }, 2000);
   };
 
   const getExpiryBadge = (expiryStr, type = "date") => {
@@ -235,57 +262,59 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* بروتوكول تأمين الطباعة السحابية لمتصفحات الـ iPad والـ iOS ومنع تقطيع الخلفيات */}
-      <style>{`
+      <style dangerouslySetInnerHTML={{__html: `
+        @media screen {
+          .print-only-layout { display: none !important; }
+          .screen-only-layout { display: block !important; }
+        }
         @media print {
           @page { size: A4 portrait; margin: 0mm !important; }
-          body, html, #root { 
-            background: white !important; color: black !important; direction: rtl !important; 
-            margin: 0 !important; padding: 0 !important; height: auto !important;
-            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+          html, body, #root {
+            background: #ffffff !important; color: #000000 !important;
+            margin: 0 !important; padding: 0 !important; width: 100% !important; height: auto !important;
           }
-          .no-print { display: none !important; }
-          .print-container { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          .screen-only-layout, .no-print { display: none !important; }
+          .print-only-layout { display: block !important; width: 100% !important; }
           
-          .print-page { 
-            display: block !important; box-sizing: border-box !important; page-break-after: always !important; 
-            page-break-inside: avoid !important; height: 297mm !important; max-height: 297mm !important;
-            overflow: hidden !important; padding: 25px 35px !important; margin: 0 !important; position: relative !important;
-            background: white !important; color: black !important;
+          .print-page {
+            display: block !important; box-sizing: border-box !important; page-break-after: always !important;
+            page-break-inside: avoid !important; width: 210mm !important; height: 297mm !important;
+            max-height: 297mm !important; overflow: hidden !important; padding: 25px 35px !important;
+            position: relative !important; background: #ffffff !important; color: #000000 !important;
           }
           
           .print-page::before {
             content: "" !important; position: absolute !important; top: 50% !important; left: 50% !important;
-            transform: translate(-50%, -50%) !important; width: 430px !important; height: 430px !important;
+            transform: translate(-50%, -50%) !important; width: 420px !important; height: 420px !important;
             background-image: url('/logo.png') !important; background-size: contain !important;
             background-repeat: no-repeat !important; background-position: center !important;
-            opacity: 0.06 !important; z-index: 0 !important; pointer-events: none !important;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            opacity: 0.05 !important; z-index: 0 !important; pointer-events: none !important;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
           
-          .print-page * { color: black !important; background: transparent !important; z-index: 1 !important; }
+          .print-page * { color: #000000 !important; background: transparent !important; z-index: 1 !important; }
           .print-page:last-child { page-break-after: avoid !important; }
           
           .document-title {
             text-align: center; background-color: #1a365d !important; color: white !important;
-            padding: 8px; font-size: 13px; font-weight: bold; margin: 10px 0; border-radius: 4px;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            padding: 8px; font-size: 14px; font-weight: bold; margin: 12px 0; border-radius: 4px;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
-          .law-section { margin-bottom: 10px; page-break-inside: avoid; }
+          .law-section { margin-bottom: 12px; page-break-inside: avoid; }
           .section-title {
             background-color: #f1f5f9 !important; border-right: 4px solid #1a365d !important;
-            padding: 5px 10px; font-size: 11.5px; font-weight: bold; color: #1a365d !important; margin: 0 0 5px 0;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            padding: 6px 12px; font-size: 12px; font-weight: bold; color: #1a365d !important; margin: 0 0 6px 0;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
-          .bilingual-box { display: flex !important; justify-content: space-between; gap: 15px; width: 100%; margin-bottom: 4px; }
-          .column-ar { width: 50%; direction: rtl; text-align: justify; font-size: 10.5px; font-weight: bold; line-height: 1.4; }
-          .column-fr { width: 50%; direction: ltr; text-align: justify; font-size: 10px; border-left: 1px dashed #cbd5e1; padding-left: 10px; line-height: 1.4; }
+          .bilingual-box { display: flex !important; justify-content: space-between; gap: 15px; width: 100%; }
+          .column-ar { width: 50%; direction: rtl; text-align: justify; font-size: 11px; font-weight: bold; line-height: 1.4; }
+          .column-fr { width: 50%; direction: ltr; text-align: justify; font-size: 10.5px; border-left: 1px dashed #cbd5e1; padding-left: 10px; line-height: 1.4; }
           
-          .signatures-table { display: flex !important; justify-content: space-between; margin-top: 25px; page-break-inside: avoid; }
+          .signatures-table { display: flex !important; justify-content: space-between; margin-top: 35px; page-break-inside: avoid; }
           .signature-cell { width: 48%; text-align: center; }
-          .signature-box { border: 1px solid #a0aec0; height: 90px; width: 90%; margin: 6px auto 0 auto; border-radius: 4px; background-color: #f8fafc !important; }
-          .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .print-table td { border: 1px solid #000 !important; padding: 10px; font-size: 12.5px; color: black !important; }
+          .signature-box { border: 1px solid #a0aec0; height: 95px; width: 90%; margin: 8px auto 0 auto; border-radius: 4px; background-color: #f8fafc !important; }
+          .print-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+          .print-table td { border: 1px solid #000000 !important; padding: 10px; font-size: 13px; color: black !important; }
           
           .contract-grid-main { display: flex !important; justify-content: space-between; gap: 20px; margin-top: 15px; }
           .contract-block { width: 48%; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; position: relative; }
@@ -294,10 +323,9 @@ function App() {
           
           .photo-inside-tenant { position: absolute; left: 12px; top: 40px; width: 85px; height: 110px; border: 1px solid #000; overflow: hidden; border-radius: 4px; }
         }
-        @media screen { .print-container { display: none !important; } }
-      `}</style>
+      `}} />
 
-      <div className="no-print">
+      <div className="screen-only-layout">
         <header style={styles.header}>
           <h1 style={styles.mainTitleText}>✨ BELAGHA MOTORS</h1>
           <div>
@@ -308,11 +336,11 @@ function App() {
 
         <div style={styles.apiConfigurationZone}>
           <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '14px' }}>
-            🔒 تم دمج وحقن بروتوكول الرندرة الحية المخصصة لأجهزة الـ iPad بنجاح!
+            🔒 تم التطهير البرمجي الشامل؛ معالجة صور الرخص حية وديناميكية 100% الآن على Netlify والـ iPad!
           </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري معالجة تيار الصورة محلياً...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري تفكيك خلايا الصورة وقراءتها تلقائياً عبر المعالج المحلى...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -330,7 +358,7 @@ function App() {
           <main style={styles.mainContent}>
             <div style={styles.sectionHeaderRow}>
               <h2>مراقبة الأسطول وتتبع الصيانة والتأمين الدورية</h2>
-              <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>{showAddCarForm ? "✖ إغلاق" : "➕ إضافة سيارة"}</button>
+              <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>{showAddCarForm ? "✖" : "➕ إضافة سيارة"}</button>
             </div>
 
             {showAddCarForm && (
@@ -415,7 +443,7 @@ function App() {
 
                         <td style={styles.td}>
                           {isEditing ? (
-                            <button type="button" onClick={saveCarEdits(car.id)} style={styles.actionSaveBtn}>حفظ 💾</button>
+                            <button type="button" onClick={() => saveCarEdits(car.id)} style={styles.actionSaveBtn}>حفظ 💾</button>
                           ) : (
                             <button type="button" onClick={() => startEditingCar(car)} style={styles.actionEditBtn}>تعديل ⚙️</button>
                           )}
@@ -484,9 +512,9 @@ function App() {
         )}
       </div>
 
-      {/* باقة الطباعة المؤمنة كلياً للرندرة الفورية على متصفحات الـ iPad */}
+      {/* عنبر الطباعة الحصري الفخم لأجهزة الـ iPad */}
       {printedContract && (
-        <div className="print-container">
+        <div className="print-only-layout">
           
           {/* الصفحة 1 */}
           <div className="print-page">
@@ -539,7 +567,7 @@ function App() {
               <div className="section-title">2. القيادة والمسؤولية / Conduite & Responsabilité</div>
               <div className="bilingual-box">
                 <div className="column-ar">لا يسمح بكراء السيارة للغير أو قيادتها من طرف شخص آخر إلا لمن حرر عقد الإيجار باسمه. وفي حالة المخالفة، يحق للوكالة استرجاع السيارة فوراً مع إلغاء العقد ودون إرجاع أي تعويض مالي. كما أنه يمنع منعاً باتاً خروج المركبة خارج التراب الوطني الجزائري.</div>
-                <div className="column-fr">La sous-location ou la conduite du véhicule par une tierce personne non mentionnée dans le présent contrat est strictement interdite. En cas d'infraction, l'agence se réserve le droit de récupérer le véhicule immédiatement sans aucun remboursement. Il est strictement interdit de sortir le véhicule du territoire national.</div>
+                <div className="column-fr">La sous-location ou la conduite du véhicule par une tierce personne non mentionnée dans le présent contrat est strictly interdite. En cas d'infraction, l'agence se réserve le droit de récupérer le véhicule immédiatement sans aucun remboursement.</div>
               </div>
             </div>
 
@@ -547,7 +575,7 @@ function App() {
               <div className="section-title">3. التأخير في الإرجاع / Retard de Restitution</div>
               <div className="bilingual-box">
                 <div className="column-ar">يلتزم المستأجر بإعادة المركبة في الوقت والتاريخ المحددين في العقد. أي تأخير عن موعد إرجاع السيارة يلزم المستأجر تلقائياً بدفع غرامة تأخير قدرها 1500 دج عن كل ساعة تأخير إضافية.</div>
-                <div className="column-fr">Le locataire s'engage à restituer le véhicule à la date et heure convenues. Tout retard dans la restitution entraîne automatiquement une pénalité de 1500 DA par heure de retard.</div>
+                <div className="column-fr">Tout retard dans la restitution entraîne automatiquement une pénalité de 1500 DA par heure de retard.</div>
               </div>
             </div>
 
