@@ -40,7 +40,7 @@ function App() {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  // حقن مفتاح الـ API الخاص بك مباشرة كخيار افتراضي آمن ومستقر لتشغيل المحرك فوراً
+  // حقن مفتاح الـ API الرسمي الجديد والنشط الخاص بك كقيمة افتراضية ثابتة
   const [apiKey, setApiKey] = useState(() => {
     return localStorage.getItem('belagha_gemini_api_key') || 'AIzaSyABvthnvojU-wXz3D73a4Pg-EOIWMXqTms';
   });
@@ -188,10 +188,10 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // --- محرك وقارئ الذكاء الاصطناعي السحابي المتوافق 100% مع حسابات الـ PRO لفك الحظر وحل خطأ 400 ---
+  // --- محرك وقارئ الذكاء الاصطناعي المستقر والمبسط لتفادي خطأ 400 نهائياً ---
   const executeRealTimeOcrScan = async (base64Image, scanType) => {
     if (!apiKey) {
-      alert("⚠️ تذكير: يرجى نسخ ولصق الـ API Key أولاً في الحقل المخصص أعلى الشاشة لتنشيط المسح التلقائي.");
+      alert("⚠️ تذكير: يرجى إدخال الـ API Key أولاً لتنشيط محرك المسح التلقائي.");
       return;
     }
     
@@ -205,24 +205,22 @@ function App() {
       
       const pureBase64Content = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
-      // الاتصال البرمجي المباشر والمستقر بقناة الـ PRO السحابية المفتوحة والمدفوعة لحسابك
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-pro" // الاعتماد على الموديل عالي الدقة دون التقييد ببنية JSON الصلبة التي تسبب الانهيار في السيرفر
+        model: "gemini-1.5-pro"
       });
 
-      // صياغة موجه ذكي ومباشر مع فك الترميزات النصية لملء النموذج بدقة بالغة
       let promptInstruction = "";
       if (scanType === 'license') {
-        promptInstruction = `أنت نظام خبير برخص السياقة الجزائرية البيومترية الجديدة. 
-        اقرأ واستخرج بدقة البيانات التالية من صورة رخصة السياقة المرفقة، وأعطني النتيجة مرتبة كالتالي تماماً بدون أي مقدمات أو كلام إضافي لتسهيل القراءة البرمجية:
-        الاسم: [اكتب اللقب والاسم بالكامل باللغة اللاتينية بوضوح كما هو مكتوب في الوثيقة]
-        الرقم: [اكتب رقم رخصة السياقة المتسلسل الطويل المكون من أرقام كاملة]
-        الميلاد: [اكتب تاريخ ومكان الميلاد الكامل المكتوب بوضوح]
-        الصدور: [اكتب تاريخ صدور رخصة السياقة المكتوب]`;
+        promptInstruction = `أنت نظام خبير برخص السياقة الجزائرية البيومترية. 
+        استخرج البيانات التالية بدقة بالغة من الصورة وأعطني النتيجة كالتالي تماماً بدون أي كلام إضافي:
+        الاسم: [اكتب اللقب والاسم بالكامل باللاتينية]
+        الرقم: [اكتب رقم رخصة السياقة الطويل]
+        الميلاد: [اكتب تاريخ ومكان الميلاد]
+        الصدور: [اكتب تاريخ صدور الوثيقة]`;
       } else {
-        promptInstruction = `استخرج رقم اللوحة المنجمية النظيف للمركبة من هذه الوثيقة الجزائرية وأعطني إياه كالتالي تماماً بدون أي كلام إضافي:
-        اللوحة: [اكتب رقم اللوحة مثل 03813-193-25]`;
+        promptInstruction = `استخرج رقم اللوحة المنجمية النظيف للمركبة الجزائرية من هذه الوثيقة وأعطني إياه كالتالي تماماً:
+        اللوحة: [رقم اللوحة مثل 03813-193-25]`;
       }
 
       const imagePayload = {
@@ -236,9 +234,9 @@ function App() {
       const response = await result.response;
       const textOutput = response.text();
       
-      console.log("Gemini Pro Processed Raw Output:", textOutput);
+      console.log("Gemini Engine Output Raw:", textOutput);
 
-      // تفكيك تصفية نصوص الـ Pro المستخرجة برمجياً وبسلاسة تامة لملء الحقول تلقائياً
+      // تصفية النصوص برمجياً وملء المدخلات فوراً وبشكل سلس
       if (scanType === 'license') {
         const nameMatch = textOutput.match(/الاسم:\s*(.*)/);
         const numMatch = textOutput.match(/الرقم:\s*(.*)/);
@@ -263,8 +261,8 @@ function App() {
         }
       }
     } catch (err) {
-      console.error("Critical Gemini API Error Log:", err);
-      alert("❌ حدث خطأ أثناء الاتصال بالـ PRO السحابي، يرجى مراجعة جودة الصورة أو إدخال البيانات يدوياً للعقد.");
+      console.error("Gemini API Engine Failure:", err);
+      alert("❌ حدث خطأ في معالجة السيرفر، يرجى كتابة البيانات يدوياً لإصدار العقد وطباعته.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -305,7 +303,6 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* ستايل سيادي للتحكم بقواعد صفحات الطباعة ومنع ظهور أي صفحات بيضاء زائدة وإبراز الألوان الحقيقية للشعار */}
       <style>{`
         @media print {
           @page {
@@ -366,7 +363,7 @@ function App() {
         @media screen { .print-container { display: none !important; } }
       `}</style>
 
-      {/* واجهة التحكم الإدارية الافتراضية للشاشة */}
+      {/* لوحة التحكم للشاشة */}
       <div className="no-print">
         <header style={styles.header}>
           <div style={styles.headerRightContainer}>
@@ -382,21 +379,20 @@ function App() {
           </div>
         </header>
 
-        {/* كابينة التحكم وحقن الـ API KEY المستقر والآمن */}
         <div style={styles.apiConfigurationZone}>
-          <label style={styles.apiLabel}>🔑 محرك الـ ذكاء الاصطناعي الاحترافي (Gemini PRO Activated):</label>
+          <label style={styles.apiLabel}>🔑 محرك الذكاء الاصطناعي الاحترافي (Gemini PRO Activated):</label>
           <input 
             type="password" 
             value={apiKey} 
             onChange={(e) => setApiKey(e.target.value)} 
-            placeholder="مفتاح الـ PRO الخاص بك محقن ومفعّل تلقائياً الآن..." 
+            placeholder="أدخل مفتاحك الجديد الفعّال هنا إذا لزم الأمر..." 
             style={styles.apiKeyInputStyle}
           />
         </div>
 
         {isLoadingAI && (
           <div style={styles.loadingBanner}>
-            ⏳ جاري تفكيك صورة الوثيقة واستخراج النصوص عبر محرك Gemini 1.5 Pro السحابي...
+            ⏳ جاري تفكيك وثيقة رخصة السياقة الجزائرية وملء الحقول تلقائياً عبر سحابة Gemini Pro...
           </div>
         )}
 
@@ -430,7 +426,7 @@ function App() {
                   <div style={styles.inputGroup}><label>رقم اللوحة المنجمية:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>العداد الحالي (كم):</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>موعد تغيير الزيت (كم):</label><input type="number" required value={newCarForm.nextOilChangeDue} onChange={e=>setNewCarForm({...newCarForm, nextOilChangeDue:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>انتهاء المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalCheckExpiry} onChange={e=>setNewCarForm({...newCarForm, technicalCheckExpiry:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>انتهاء المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalCheckExpiry} onChange={e=>setNewCarForm({...newCarForm, technicalCheckExpiry} )} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>رقم الهيكل (Chassis):</label><input type="text" required value={newCarForm.chassisNumber} onChange={e=>setNewCarForm({...newCarForm, chassisNumber:e.target.value})} style={styles.input}/></div>
                   <button type="submit" style={styles.saveCarBtn}>💾 حفظ وإدراج في الأسطول</button>
@@ -548,7 +544,7 @@ function App() {
         )}
       </div>
 
-      {/* قالب الطباعة الفعلي المستقر والمنظم لـ 3 صفحات حقيقية ومغلقة كلياً */}
+      {/* قالب الطباعة المنظم والمغلق */}
       {printedContract && (
         <div className="print-container" style={printStyles.container}>
           
@@ -708,7 +704,7 @@ function App() {
   );
 }
 
-// --- التنسيقات الهندسية المعتمدة لمتصفح الشاشة ---
+// --- التنسيقات الهندسية للشاشة ---
 const styles = {
   appContainer: { fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' },
   header: { backgroundColor: '#1e293b', color: '#fff', padding: '12px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' },
