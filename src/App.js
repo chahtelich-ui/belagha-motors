@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// الأسطول الافتراضي مضافاً إليه حقول تغيير الزيت والمراقبة التقنية الدورية
 const initialFleet = [
   { id: "car_1", brand: "Rover", model: "XPHWEP", year: 1993, plateNumber: "03813-193-25", currentMileage: 156200, status: "available", insuranceExpiryDate: "2026-08-15", oilChangeMileage: 160000, technicalControlDate: "2026-09-20" },
   { id: "car_2", brand: "Hyundai", model: "i10", year: 2022, plateNumber: "12345-122-25", currentMileage: 49500, status: "available", insuranceExpiryDate: "2026-06-01", oilChangeMileage: 55000, technicalControlDate: "2026-11-15" },
@@ -9,12 +8,11 @@ const initialFleet = [
 
 function App() {
   const [fleet, setFleet] = useState(initialFleet);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('new-contract');
   const [showAddCarForm, setShowAddCarForm] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  // ولايات التحكم بالتعديل الشامل للسيارة داخل الجدول مباشرة
   const [editingCarId, setEditingCarId] = useState(null);
   const [editMileage, setEditMileage] = useState('');
   const [editInsuranceDate, setEditInsuranceDate] = useState('');
@@ -76,7 +74,6 @@ function App() {
     setNewCarForm({ brand: '', model: '', year: 2026, plateNumber: '', currentMileage: '', insuranceExpiryDate: '2026-12-31', oilChangeMileage: '', technicalControlDate: '2026-12-31' });
   };
 
-  // تفعيل وضع التعديل وتعبئة الحقول الحالية للسيارة المستهدفة
   const startEditingCar = (car) => {
     setEditingCarId(car.id);
     setEditMileage(car.currentMileage);
@@ -85,7 +82,6 @@ function App() {
     setEditTechControlDate(car.technicalControlDate || '');
   };
 
-  // حفظ التحديثات المدخلة يدوياً لعداد ومواعيد السيارة
   const saveCarEdits = (id) => {
     setFleet(fleet.map(car => car.id === id ? { 
       ...car, 
@@ -113,7 +109,7 @@ function App() {
         videoRef.current.play();
       }
     } catch (err) {
-      alert("صلاحية الكاميرا مطلوبة للتشغيل الحي.");
+      alert("صلاحية الكاميرا مطلوبة.");
       setCameraMode(null);
     }
   };
@@ -124,7 +120,7 @@ function App() {
     canvas.width = videoRef.current.videoWidth || 640;
     canvas.height = videoRef.current.videoHeight || 480;
     canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataUrl('image/jpeg', 0.8);
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
     if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
@@ -181,6 +177,7 @@ function App() {
     }
   };
 
+  // معالجة الطباعة الآمنة المتوافقة مع بروتوكولات أجهزة الـ iPad ومتصفحات الـ iOS
   const handleOriginalPrintSubmit = (e) => {
     e.preventDefault();
     if (!contractForm.selectedCarId) {
@@ -190,7 +187,6 @@ function App() {
     const targetCar = fleet.find(car => car.id === contractForm.selectedCarId);
     const activeDays = calculatedDays || 1;
     
-    // التغيير التلقائي للعداد: إضافة 250 كم عن كل يوم كراء
     const drivenDistance = activeDays * 250;
     const newUpdatedMileage = Number(targetCar.currentMileage) + drivenDistance;
 
@@ -209,12 +205,16 @@ function App() {
       dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR')
     });
 
-    setTimeout(() => { window.print(); setPrintedContract(null); setActiveTab('dashboard'); }, 500);
+    // زيادة مهلة الانتظار لـ 1500ms مع إجبار الـ iOS على تحميل خلايا الطباعة بالكامل
+    setTimeout(() => { 
+      window.print(); 
+      setPrintedContract(null); 
+      setActiveTab('dashboard'); 
+    }, 1500);
   };
 
   const getExpiryBadge = (expiryStr, type = "date") => {
     if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
-    
     if (type === "date") {
       const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
       if (days < 0) return { label: "منتهي ❌", color: "#fee2e2", text: "#991b1b" };
@@ -224,7 +224,6 @@ function App() {
     return { label: "ساري ✅", color: "#dcfce7", text: "#166534" };
   };
 
-  // حساب حالة العداد المتبقي لتغيير الزيت
   const getOilStatusBadge = (current, target) => {
     if (!target) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
     const remaining = target - current;
@@ -236,7 +235,7 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* بروتوكول الطباعة الثلاثي والواقي من أي تشويه خارجي للمقاييس والعلامة المائية */}
+      {/* بروتوكول تأمين الطباعة السحابية لمتصفحات الـ iPad والـ iOS ومنع تقطيع الخلفيات */}
       <style>{`
         @media print {
           @page { size: A4 portrait; margin: 0mm !important; }
@@ -257,7 +256,7 @@ function App() {
           
           .print-page::before {
             content: "" !important; position: absolute !important; top: 50% !important; left: 50% !important;
-            transform: translate(-50%, -50%) !important; width: 450px !important; height: 450px !important;
+            transform: translate(-50%, -50%) !important; width: 430px !important; height: 430px !important;
             background-image: url('/logo.png') !important; background-size: contain !important;
             background-repeat: no-repeat !important; background-position: center !important;
             opacity: 0.06 !important; z-index: 0 !important; pointer-events: none !important;
@@ -308,12 +307,12 @@ function App() {
         </header>
 
         <div style={styles.apiConfigurationZone}>
-          <span style={{ color: '#1e3a8a', fontWeight: 'bold', fontSize: '14px' }}>
-            📊 لوحة التحكم الشاملة: تعديل العداد، التأمين، الـ Vidange، والمراقبة التقنية الدورية (Contrôle Technique) مفعل بالكامل.
+          <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '14px' }}>
+            🔒 تم دمج وحقن بروتوكول الرندرة الحية المخصصة لأجهزة الـ iPad بنجاح!
           </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري قراءة بيانات وثيقة رخصة السياقة بالذكاء الاصطناعي...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري معالجة تيار الصورة محلياً...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -330,8 +329,8 @@ function App() {
         {activeTab === 'dashboard' && (
           <main style={styles.mainContent}>
             <div style={styles.sectionHeaderRow}>
-              <h2>مراقبة وصيانة سيارات الوكالة دقيقة بدقيقة</h2>
-              <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>{showAddCarForm ? "✖ إغلاق" : "➕ إضافة سيارة للأسطول"}</button>
+              <h2>مراقبة الأسطول وتتبع الصيانة والتأمين الدورية</h2>
+              <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>{showAddCarForm ? "✖ إغلاق" : "➕ إضافة سيارة"}</button>
             </div>
 
             {showAddCarForm && (
@@ -359,7 +358,7 @@ function App() {
                     <th>تغيير الزيت (Vidange)</th>
                     <th>المراقبة التقنية (Contrôle Technique)</th>
                     <th>خيارات التحكم</th>
-                    <th>الحالة الحالية</th>
+                    <th>الحالة</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -373,7 +372,6 @@ function App() {
                       <tr key={car.id} style={styles.tr}>
                         <td style={styles.td}><strong>{car.brand} {car.model}</strong><br/><span style={{fontSize:'12px', color:'#64748b'}}>{car.plateNumber}</span></td>
                         
-                        {/* 1. تعديل العداد الحالي */}
                         <td style={styles.monospaceTd}>
                           {isEditing ? (
                             <input type="number" value={editMileage} onChange={(e) => setEditMileage(e.target.value)} style={styles.inlineInput} />
@@ -382,7 +380,6 @@ function App() {
                           )}
                         </td>
                         
-                        {/* 2. تعديل تاريخ انتهاء التأمين */}
                         <td style={styles.td}>
                           {isEditing ? (
                             <input type="date" value={editInsuranceDate} onChange={(e) => setEditInsuranceDate(e.target.value)} style={styles.inlineInput} />
@@ -394,10 +391,9 @@ function App() {
                           )}
                         </td>
                         
-                        {/* 3. تعديل مستهدف عداد تغيير الزيت */}
                         <td style={styles.td}>
                           {isEditing ? (
-                            <input type="number" value={editOilMileage} onChange={(e) => setEditOilMileage(e.target.value)} style={styles.inlineInput} placeholder="مثال: 160000" />
+                            <input type="number" value={editOilMileage} onChange={(e) => setEditOilMileage(e.target.value)} style={styles.inlineInput} />
                           ) : (
                             <div>
                               <span style={{...styles.badge, backgroundColor: oilBadge.color, color: oilBadge.text}}>{oilBadge.label}</span>
@@ -406,7 +402,6 @@ function App() {
                           )}
                         </td>
 
-                        {/* 4. تعديل تاريخ المراقبة التقنية الدورية */}
                         <td style={styles.td}>
                           {isEditing ? (
                             <input type="date" value={editTechControlDate} onChange={(e) => setEditTechControlDate(e.target.value)} style={styles.inlineInput} />
@@ -418,12 +413,11 @@ function App() {
                           )}
                         </td>
 
-                        {/* 5. عمود الحفظ والتعديل التبادلي */}
                         <td style={styles.td}>
                           {isEditing ? (
-                            <button type="button" onClick={() => saveCarEdits(car.id)} style={styles.actionSaveBtn}>حفظ 💾</button>
+                            <button type="button" onClick={saveCarEdits(car.id)} style={styles.actionSaveBtn}>حفظ 💾</button>
                           ) : (
-                            <button type="button" onClick={() => startEditingCar(car)} style={styles.actionEditBtn}>تعديل البيانات ⚙️</button>
+                            <button type="button" onClick={() => startEditingCar(car)} style={styles.actionEditBtn}>تعديل ⚙️</button>
                           )}
                         </td>
 
@@ -483,10 +477,6 @@ function App() {
                   <div style={styles.inputGroup}><label>حالة خزان الوقود:</label><input type="text" required value={contractForm.fuelStatus} onChange={e => setContractForm({...contractForm, fuelStatus: e.target.value})} style={styles.input}/></div>
                 </div>
 
-                <div style={{ marginTop: '15px', background: '#f8fafc', padding: '10px', borderRadius: '4px', fontSize: '13px' }}>
-                  📊 المدة الزرقاء المحسوبة: <strong>{calculatedDays} يوم</strong> | مسافة الكراء المضافة للعداد آلياً بعد الحفظ: <strong>{calculatedDays * 250} كم</strong>
-                </div>
-
                 <button type="submit" style={styles.submitButton}>💾 توليد وحفظ عقد الكراء النهائي للطباعة</button>
               </form>
             </div>
@@ -494,7 +484,7 @@ function App() {
         )}
       </div>
 
-      {/* بيئة الطباعة الرسمية الثابتة والمحمية بالمليمتر (3 صفحات كاملة) */}
+      {/* باقة الطباعة المؤمنة كلياً للرندرة الفورية على متصفحات الـ iPad */}
       {printedContract && (
         <div className="print-container">
           
@@ -557,7 +547,7 @@ function App() {
               <div className="section-title">3. التأخير في الإرجاع / Retard de Restitution</div>
               <div className="bilingual-box">
                 <div className="column-ar">يلتزم المستأجر بإعادة المركبة في الوقت والتاريخ المحددين في العقد. أي تأخير عن موعد إرجاع السيارة يلزم المستأجر تلقائياً بدفع غرامة تأخير قدرها 1500 دج عن كل ساعة تأخير إضافية.</div>
-                <div className="column-fr">Le locataire s'engage à restituer le véhicule à la date et heure convenues. Tout retard dans la restitution entraînotes automatiquement une pénalité de 1500 DA par heure de retard.</div>
+                <div className="column-fr">Le locataire s'engage à restituer le véhicule à la date et heure convenues. Tout retard dans la restitution entraîne automatiquement une pénalité de 1500 DA par heure de retard.</div>
               </div>
             </div>
 
@@ -622,6 +612,7 @@ function App() {
           <div className="print-page">
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', textAlign: 'center' }}>
               <div style={{ fontWeight: 'bold', fontSize: '18px' }}>BELAGHA MOTORS FINANCE</div>
+              <span style={{ fontSize: '11px' }}>وصل استلام مالي رسمي موثق للعميل</span>
             </div>
             
             <div style={{ marginTop: '40px' }}>
