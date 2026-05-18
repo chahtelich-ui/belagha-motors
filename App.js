@@ -37,7 +37,7 @@ function App() {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  // حالة فحص الـ API Key واكتشاف نوعه وصلاحيته
+  // حالة حفظ وفحص مفتاح الـ API كاشف جودة الاتصال
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_gemini_api_key') || '');
   const [apiStatus, setApiStatus] = useState({ tested: false, success: false, message: '', modelUsed: '' });
   const [isTestingKey, setIsTestingKey] = useState(false);
@@ -86,10 +86,10 @@ function App() {
     }
   }, [contractForm.startDate, contractForm.endDate, contractForm.pricePerDay]);
 
-  // --- دالة الفحص الذكي واكتشاف جودة وإصدار مفتاح الـ API Key اللحظي ---
+  // --- دالة كاشف ومختبر الـ API ومحاولة قراءة استجابة السيرفر ---
   const handleTestApiKey = async () => {
     if (!apiKey) {
-      setApiStatus({ tested: true, success: false, message: '❌ حقل المفتاح فارغ! يرجى لصق الـ API Key أولاً.', modelUsed: '' });
+      setApiStatus({ tested: true, success: false, message: '❌ حقل المفتاح فارغ! يرجى لصق الـ API Key أولاً ثم الفحص.', modelUsed: '' });
       return;
     }
     setIsTestingKey(true);
@@ -97,23 +97,19 @@ function App() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // تجربة اختبار الاتصال عبر نموذج Pro أولاً
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-      const testResult = await model.generateContent("Respond with only one word: OK");
+      const testResult = await model.generateContent("Respond with only the word OK");
       const responseText = (await testResult.response).text().trim();
 
-      if (responseText.includes("OK") || responseText.length > 0) {
+      if (responseText.length > 0) {
         setApiStatus({
           tested: true,
           success: true,
-          message: '🟢 المفتاح يعمل بنجاح كلي! تم تأكيد الاتصال بالسيرفر واستجابة الذكاء الاصطناعي سليمة 100%.',
+          message: '🟢 رائع! المفتاح سليم ويعمل بنجاح، وتم تأكيد الاتصال المباشر وخوادم جوجل تستجيب بالكامل.',
           modelUsed: 'Gemini 1.5 Pro (النسخة الاحترافية النشطة)'
         });
       }
     } catch (proErr) {
-      console.error("Pro testing failed, testing Flash format...", proErr);
-      
-      // إذا فشل Pro، نجرب نموذج Flash الافتراضي لمعرفة نوع المشكلة
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const flashModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -124,26 +120,26 @@ function App() {
           setApiStatus({
             tested: true,
             success: true,
-            message: '🟡 المفتاح يعمل ولكن على الخطة الافتراضية العامة فقط (Flash)، قد يواجه قيوداً مع الصور الكبيرة.',
-            modelUsed: 'Gemini 1.5 Flash (الخطة العامة القياسية)'
+            message: '🟡 المفتاح مستجيب ولكن على نسخة الخطة العامة القياسية فقط (Flash).',
+            modelUsed: 'Gemini 1.5 Flash (النسخة الأساسية للعموم)'
           });
           return;
         }
       } catch (flashErr) {
         let errMsg = flashErr.message || '';
-        let cleanReason = '❌ المفتاح مرفوض تماماً من سيرفرات Google! ';
+        let cleanReason = '❌ السيرفر يرفض الاتصال بالمفتاح الحالي. ';
         
         if (errMsg.includes("API key not valid")) {
-          cleanReason += "السبب: كود المفتاح مكتوب بشكل خاطئ أو ناقص، يرجى إعادة نسخه بدقة.";
+          cleanReason += "السبب: كود المفتاح خاطئ أو ناقص، يرجى إعادة نسخه بالكامل.";
         } else if (errMsg.includes("BILLING_LIMIT") || errMsg.includes("quota")) {
-          cleanReason += "السبب: الحساب تجاوز حد الاستهلاك المجاني أو يحتاج لتفعيل الفوترة لربط الصور.";
+          cleanReason += "السبب: الحساب بحاجة لربط الفوترة (Billing) داخل جوجل كلاود للسماح بقراءة الصور.";
         } else if (errMsg.includes("location") || errMsg.includes("not supported")) {
-          cleanReason += "السبب: حظر جغرافي إقليمي من جوجل على السيرفر المستدعي (حلها تفعيل VPN).";
+          cleanReason += "السبب: قيود وحظر جغرافي على الخادم السحابي العام (يمكن تجاوزه بتفعيل VPN).";
         } else {
-          cleanReason += `تفاصيل استجابة السيرفر: ${errMsg}`;
+          cleanReason += `تفاصيل استجابة جوجل: ${errMsg}`;
         }
 
-        setApiStatus({ tested: true, success: false, message: cleanReason, modelUsed: 'مجهول / معطل' });
+        setApiStatus({ tested: true, success: false, message: cleanReason, modelUsed: 'معطل / مجهول' });
       }
     } finally {
       setIsTestingKey(false);
@@ -151,7 +147,7 @@ function App() {
   };
 
   const getExpiryBadge = (expiryStr) => {
-    if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    if (!expiryStr) return { label: "غير مححدد", color: "#f3f4f6", text: "#4b5563" };
     const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
     if (days < 0) return { label: "منتهي", color: "#fee2e2", text: "#991b1b" };
     if (days <= 15) return { label: "ينتهي قريبًا", color: "#fef3c7", text: "#92400e" };
@@ -241,14 +237,13 @@ function App() {
       const pureBase64Content = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      // استخدام النموذج المناسب بناء على الفحص اللحظي لتفادي الانهيار
       const model = genAI.getGenerativeModel({ model: apiStatus.modelUsed.includes("Flash") ? "gemini-1.5-flash" : "gemini-1.5-pro" });
 
-      let promptInstruction = `استخرج البيانات النصية بدقة من هذه الوثيقة الجزائرية، وأعطني النتيجة كالتالي تماماً بدون أي كلام إضافي:`;
+      let promptInstruction = `استخرج البيانات بدقة من هذه الوثيقة الجزائرية، وأعطني النتيجة كالتالي تماماً بدون أي كلام إضافي:`;
       if (scanType === 'license') {
         promptInstruction += `
         الاسم: [الاسم واللقب باللاتينية بالكامل]
-        الرقم: [رقم رخصة السياقة كاملاً المكون من أرقام]
+        الرقم: [رقم رخصة السياقة كاملاً]
         الميلاد: [تاريخ ومكان الميلاد]
         الصدور: [تاريخ صدور الوثيقة]`;
       } else {
@@ -289,7 +284,7 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      alert("❌ تعذر الاستخراج التلقائي. يرجى التحقق من حالة اختبار الـ API Key في الأعلى.");
+      alert("❌ تعذر الاستخراج التلقائي اللحظي. يرجى مراجعة نافذة كاشف الـ API في الأعلى للتأكد من القيود.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -368,23 +363,22 @@ function App() {
           </div>
         </header>
 
-        {/* كابينة الفحص والتحليل الذكي اللحظي لـ API KEY */}
+        {/* وحدة الفحص والمختبر الذكي لـ API KEY واكتشاف الأخطاء تلقائياً */}
         <div style={styles.apiConfigurationZone}>
           <div style={{display:'flex', alignItems:'center', gap:'10px', width:'100%', flexWrap:'wrap'}}>
-            <label style={styles.apiLabel}>🔑 الصق الـ Gemini API Key المراد فحصه:</label>
+            <label style={styles.apiLabel}>🔑 الصق الـ Gemini API Key المُراد فحصه وكشف نوعه:</label>
             <input 
               type="password" 
               value={apiKey} 
               onChange={(e) => setApiKey(e.target.value)} 
-              placeholder="ضع كود المفتاح هنا للفحص..." 
+              placeholder="ضع كود المفتاح هنا للفحص الفوري..." 
               style={styles.apiKeyInputStyle}
             />
             <button type="button" onClick={handleTestApiKey} disabled={isTestingKey} style={styles.testApiBtn}>
-              {isTestingKey ? "⏳ جاري التحليل..." : "🔍 فحص وتحديد نوع وصلاحية المفتاح"}
+              {isTestingKey ? "⏳ جاري الفحص والتحليل..." : "🔍 فحص واكتشاف إصدار ونوع المفتاح"}
             </button>
           </div>
           
-          {/* صندوق عرض نتائج تحليل الاتصال */}
           {apiStatus.tested && (
             <div style={{
               marginTop: '12px', padding: '12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold',
@@ -392,14 +386,14 @@ function App() {
               border: `1px solid ${apiStatus.success ? '#bbf7d0' : '#fca5a5'}`
             }}>
               <div>{apiStatus.message}</div>
-              {apiStatus.success && <div style={{marginTop:'4px', color:'#1e3a8a'}}>📦 نوع إصدار المحرك النشط: {apiStatus.modelUsed}</div>}
+              {apiStatus.success && <div style={{marginTop:'4px', color:'#1e3a8a'}}>📦 نوع إصدار المحرك النشط المكتشف: {apiStatus.modelUsed}</div>}
             </div>
           )}
         </div>
 
         {isLoadingAI && (
           <div style={styles.loadingBanner}>
-            ⏳ جاري تفكيك صورة الوثيقة الجزائرية وملء الحقول تلقائياً...
+            ⏳ جاري فحص المستند بالذكاء الاصطناعي وتحديث الحقول تلقائياً...
           </div>
         )}
 
@@ -551,6 +545,7 @@ function App() {
         )}
       </div>
 
+      {/* قالب الطباعة المنظم */}
       {printedContract && (
         <div className="print-container" style={printStyles.container}>
           <div className="print-page" style={printStyles.page}>
@@ -672,7 +667,7 @@ function App() {
                     <td style={printStyles.htmlFormatedText}>{printedContract.tenantName}</td>
                   </tr>
                   <tr>
-                    <td style={printStyles.tableLabelTd}>المركبة المؤجرة / Véhicule</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%'}}>المركبة المؤجرة / Véhicule</td>
                     <td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td>
                   </tr>
                   <tr>
@@ -790,6 +785,7 @@ const printStyles = {
   quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' },
   tableLabelTd: { fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' },
   fontMonospace: { fontFamily: 'monospace' },
+  htmlFormatedText: { fontWeight: 'bold', fontSize: '14px' },
   htmlFormatedText: { fontWeight: 'bold', fontSize: '14px' },
   fontWeightBold16Color111: { fontSize: '16px', fontWeight: 'bold', color: '#111' }
 };
