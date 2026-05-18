@@ -37,7 +37,6 @@ function App() {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  // حالة حفظ وفحص مفتاح الـ API كاشف جودة الاتصال
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_gemini_api_key') || '');
   const [apiStatus, setApiStatus] = useState({ tested: false, success: false, message: '', modelUsed: '' });
   const [isTestingKey, setIsTestingKey] = useState(false);
@@ -86,10 +85,9 @@ function App() {
     }
   }, [contractForm.startDate, contractForm.endDate, contractForm.pricePerDay]);
 
-  // --- دالة كاشف ومختبر الـ API ومحاولة قراءة استجابة السيرفر ---
   const handleTestApiKey = async () => {
     if (!apiKey) {
-      setApiStatus({ tested: true, success: false, message: '❌ حقل المفتاح فارغ! يرجى لصق الـ API Key أولاً ثم الفحص.', modelUsed: '' });
+      setApiStatus({ tested: true, success: false, message: 'ERR_EMPTY_KEY', modelUsed: '' });
       return;
     }
     setIsTestingKey(true);
@@ -98,15 +96,15 @@ function App() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-      const testResult = await model.generateContent("Respond with only the word OK");
+      const testResult = await model.generateContent("Respond with only OK");
       const responseText = (await testResult.response).text().trim();
 
       if (responseText.length > 0) {
         setApiStatus({
           tested: true,
           success: true,
-          message: '🟢 رائع! المفتاح سليم ويعمل بنجاح، وتم تأكيد الاتصال المباشر وخوادم جوجل تستجيب بالكامل.',
-          modelUsed: 'Gemini 1.5 Pro (النسخة الاحترافية النشطة)'
+          message: 'SUCCESS_PRO',
+          modelUsed: 'Gemini 1.5 Pro'
         });
       }
     } catch (proErr) {
@@ -120,34 +118,31 @@ function App() {
           setApiStatus({
             tested: true,
             success: true,
-            message: '🟡 المفتاح مستجيب ولكن على نسخة الخطة العامة القياسية فقط (Flash).',
-            modelUsed: 'Gemini 1.5 Flash (النسخة الأساسية للعموم)'
+            message: 'SUCCESS_FLASH',
+            modelUsed: 'Gemini 1.5 Flash'
           });
           return;
         }
       } catch (flashErr) {
         let errMsg = flashErr.message || '';
-        let cleanReason = '❌ السيرفر يرفض الاتصال بالمفتاح الحالي. ';
+        let finalErr = 'ERR_UNKNOWN';
         
         if (errMsg.includes("API key not valid")) {
-          cleanReason += "السبب: كود المفتاح خاطئ أو ناقص، يرجى إعادة نسخه بالكامل.";
+          finalErr = 'ERR_INVALID_KEY';
         } else if (errMsg.includes("BILLING_LIMIT") || errMsg.includes("quota")) {
-          cleanReason += "السبب: الحساب بحاجة لربط الفوترة (Billing) داخل جوجل كلاود للسماح بقراءة الصور.";
+          finalErr = 'ERR_BILLING';
         } else if (errMsg.includes("location") || errMsg.includes("not supported")) {
-          cleanReason += "السبب: قيود وحظر جغرافي على الخادم السحابي العام (يمكن تجاوزه بتفعيل VPN).";
-        } else {
-          cleanReason += `تفاصيل استجابة جوجل: ${errMsg}`;
+          finalErr = 'ERR_LOCATION';
         }
-
-        setApiStatus({ tested: true, success: false, message: cleanReason, modelUsed: 'معطل / مجهول' });
+        setApiStatus({ tested: true, success: false, message: finalErr, modelUsed: '' });
       }
-    } finally {
+    } final {
       setIsTestingKey(false);
     }
   };
 
   const getExpiryBadge = (expiryStr) => {
-    if (!expiryStr) return { label: "غير مححدد", color: "#f3f4f6", text: "#4b5563" };
+    if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
     const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
     if (days < 0) return { label: "منتهي", color: "#fee2e2", text: "#991b1b" };
     if (days <= 15) return { label: "ينتهي قريبًا", color: "#fef3c7", text: "#92400e" };
@@ -224,7 +219,7 @@ function App() {
 
   const executeRealTimeOcrScan = async (base64Image, scanType) => {
     if (!apiKey) {
-      alert("⚠️ يرجى إدخال مفتاح الـ API Key في الحقل العلوي أولاً.");
+      alert("⚠️ يرجى إدخال مفتاح الـ API Key أولاً.");
       return;
     }
     
@@ -239,7 +234,7 @@ function App() {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: apiStatus.modelUsed.includes("Flash") ? "gemini-1.5-flash" : "gemini-1.5-pro" });
 
-      let promptInstruction = `استخرج البيانات بدقة من هذه الوثيقة الجزائرية، وأعطني النتيجة كالتالي تماماً بدون أي كلام إضافي:`;
+      let promptInstruction = `استخرج البيانات بدقة كالتالي تماماً بدون أي كلام إضافي:`;
       if (scanType === 'license') {
         promptInstruction += `
         الاسم: [الاسم واللقب باللاتينية بالكامل]
@@ -284,7 +279,7 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      alert("❌ تعذر الاستخراج التلقائي اللحظي. يرجى مراجعة نافذة كاشف الـ API في الأعلى للتأكد من القيود.");
+      alert("❌ تعذر استخراج البيانات. تحقق من حالة المفتاح العلوية.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -322,32 +317,29 @@ function App() {
     }, 500);
   };
 
+  // معالجة النصوص المنفصلة لعرضها واجهة المستخدم دون كسر الـ Compiler
+  let statusUiColor = '#fee2e2';
+  let statusUiTextColor = '#991b1b';
+  let statusUiMessage = '';
+
+  if (apiStatus.tested) {
+    if (apiStatus.success) {
+      statusUiColor = '#dcfce7';
+      statusUiTextColor = '#15803d';
+      statusUiMessage = apiStatus.message === 'SUCCESS_PRO' 
+        ? '🟢 اتصال ناجح! المفتاح مفعّل ويعمل بأعلى كفاءة على خوادم جوغل الاحترافية (Gemini Pro).' 
+        : '🟡 المفتاح مستجيب ولكن على النسخة العامة الأساسية (Gemini Flash).';
+    } else {
+      if (apiStatus.message === 'ERR_EMPTY_KEY') statusUiMessage = '❌ حقل المفتاح فارغ! يرجى لصق الـ API Key أولاً.';
+      else if (apiStatus.message === 'ERR_INVALID_KEY') statusUiMessage = '❌ كود المفتاح خاطئ أو تم نسخه بشكل ناقص. أعد النسخ من AI Studio.';
+      else if (apiStatus.message === 'ERR_BILLING') statusUiMessage = '❌ الحساب بحاجة لتفعيل الفوترة وربط بطاقة الدفع داخل Google Cloud لمسح الصور.';
+      else if (apiStatus.message === 'ERR_LOCATION') statusUiMessage = '❌ حظر جغرافي إقليمي من جوجل على السيرفر (يمكنك كسر الحظر بتشغيل VPN).';
+      else statusUiMessage = '❌ السيرفر يرفض الاتصال بالمفتاح الحالي، تأكد من صلاحيته.';
+    }
+  }
+
   return (
     <div style={styles.appContainer} dir="rtl">
-      <style>{`
-        @media print {
-          @page { size: A4 portrait; margin: 0mm !important; }
-          body, html, #root { 
-            background: white !important; color: black !important; direction: rtl !important; 
-            margin: 0 !important; padding: 0 !important; height: auto !important; font-size: 11px !important;
-            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
-          }
-          .no-print { display: none !important; }
-          .print-container { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
-          .print-page { 
-            display: block !important; box-sizing: border-box !important; page-break-after: always !important; 
-            page-break-inside: avoid !important; height: 297mm !important; max-height: 297mm !important;
-            overflow: hidden !important; padding: 25px 35px !important; margin: 0 !important; position: relative !important;
-          }
-          .print-page:last-child { page-break-after: avoid !important; }
-          .clauses-container { display: flex !important; justify-content: space-between !important; gap: 20px !important; width: 100% !important; margin-top: 10px !important; }
-          .clause-column { width: 48% !important; text-align: justify !important; }
-          .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          .print-table td { border: 1px solid #000; padding: 12px; font-size: 13px; }
-        }
-        @media screen { .print-container { display: none !important; } }
-      `}</style>
-
       <div className="no-print">
         <header style={styles.header}>
           <div style={styles.headerRightContainer}>
@@ -363,39 +355,30 @@ function App() {
           </div>
         </header>
 
-        {/* وحدة الفحص والمختبر الذكي لـ API KEY واكتشاف الأخطاء تلقائياً */}
         <div style={styles.apiConfigurationZone}>
           <div style={{display:'flex', alignItems:'center', gap:'10px', width:'100%', flexWrap:'wrap'}}>
-            <label style={styles.apiLabel}>🔑 الصق الـ Gemini API Key المُراد فحصه وكشف نوعه:</label>
+            <label style={styles.apiLabel}>🔑 كاشف ومحلل صلاحية الـ Gemini API Key المباشر:</label>
             <input 
               type="password" 
               value={apiKey} 
               onChange={(e) => setApiKey(e.target.value)} 
-              placeholder="ضع كود المفتاح هنا للفحص الفوري..." 
+              placeholder="ضع كود المفتاح هنا لاكتشافه فوراً..." 
               style={styles.apiKeyInputStyle}
             />
             <button type="button" onClick={handleTestApiKey} disabled={isTestingKey} style={styles.testApiBtn}>
-              {isTestingKey ? "⏳ جاري الفحص والتحليل..." : "🔍 فحص واكتشاف إصدار ونوع المفتاح"}
+              {isTestingKey ? "⏳ جاري الفحص والتحليل..." : "🔍 فحص واكتشاف صلاحية المفتاح"}
             </button>
           </div>
           
           {apiStatus.tested && (
-            <div style={{
-              marginTop: '12px', padding: '12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold',
-              backgroundColor: apiStatus.success ? '#dcfce7' : '#fee2e2', color: apiStatus.success ? '#15803d' : '#b91c1c',
-              border: `1px solid ${apiStatus.success ? '#bbf7d0' : '#fca5a5'}`
-            }}>
-              <div>{apiStatus.message}</div>
-              {apiStatus.success && <div style={{marginTop:'4px', color:'#1e3a8a'}}>📦 نوع إصدار المحرك النشط المكتشف: {apiStatus.modelUsed}</div>}
+            <div style={{ marginTop: '12px', padding: '12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', backgroundColor: statusUiColor, color: statusUiTextColor, border: `1px solid ${statusUiTextColor}` }}>
+              <div>{statusUiMessage}</div>
+              {apiStatus.success && <div style={{marginTop:'4px', color:'#1e3a8a'}}>📦 نوع المحرك النشط: {apiStatus.modelUsed}</div>}
             </div>
           )}
         </div>
 
-        {isLoadingAI && (
-          <div style={styles.loadingBanner}>
-            ⏳ جاري فحص المستند بالذكاء الاصطناعي وتحديث الحقول تلقائياً...
-          </div>
-        )}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخراج نصوص رخصة السياقة الجزائرية وملء الخانات تلقائياً...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -545,7 +528,6 @@ function App() {
         )}
       </div>
 
-      {/* قالب الطباعة المنظم */}
       {printedContract && (
         <div className="print-container" style={printStyles.container}>
           <div className="print-page" style={printStyles.page}>
@@ -785,7 +767,6 @@ const printStyles = {
   quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' },
   tableLabelTd: { fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' },
   fontMonospace: { fontFamily: 'monospace' },
-  htmlFormatedText: { fontWeight: 'bold', fontSize: '14px' },
   htmlFormatedText: { fontWeight: 'bold', fontSize: '14px' },
   fontWeightBold16Color111: { fontSize: '16px', fontWeight: 'bold', color: '#111' }
 };
