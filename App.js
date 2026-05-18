@@ -95,7 +95,6 @@ function App() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // استخدام نص ثابت صريح ومباشر لمنع ارتباك الـ Compiler
       const modelPro = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
       const testResult = await modelPro.generateContent("Respond with only OK");
       const responseText = (await testResult.response).text().trim();
@@ -111,7 +110,6 @@ function App() {
     } catch (proErr) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        // استخدام نص ثابت صريح ومباشر هنا أيضاً كخيار بديل لقسم الفلاش
         const modelFlash = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const testFlash = await modelFlash.generateContent("OK");
         const flashRes = (await testFlash.response).text().trim();
@@ -234,7 +232,6 @@ function App() {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // استدعاء الموديل بنصوص ثابتة وصريحة تماماً لحل مشكلة الـ Expression المسببة للفشل
       let selectedModelInstance;
       if (apiStatus.modelUsed && apiStatus.modelUsed.includes("Flash")) {
         selectedModelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
