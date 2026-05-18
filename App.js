@@ -163,7 +163,7 @@ function App() {
 
   const executeRealTimeOcrScan = async (base64Image, scanType) => {
     if (!apiKey) {
-      alert("⚠️ يرجى إدخال مفتاح الـ API Key في الحقل العلوي لتشغيل الفحص التلقائي.");
+      alert("⚠️ يرجى إدخال مفتاح الـ API Key أولاً.");
       return;
     }
     
@@ -295,19 +295,19 @@ function App() {
         </header>
 
         <div style={styles.apiConfigurationZone}>
-          <label style={styles.apiLabel}>🔑 محرك الـ ذكاء الاصطناعي المستقر (Gemini API Key):</label>
+          <label style={styles.apiLabel}>🔑 Gemini API Key:</label>
           <input 
             type="password" 
             value={apiKey} 
             onChange={(e) => setApiKey(e.target.value)} 
-            placeholder="أدخل مفتاح الـ API KEY هنا لتنشيط القراءة التلقائية..." 
+            placeholder="أدخل مفتاح الـ API KEY المولد هنا..." 
             style={styles.apiKeyInputStyle}
           />
         </div>
 
         {isLoadingAI && (
           <div style={styles.loadingBanner}>
-            ⏳ jاري فحص المستند بالذكاء الاصطناعي وتحديث الحقول تلقائياً في ثوانٍ...
+            ⏳ جاري فحص المستند بالذكاء الاصطناعي وتحديث الحقول...
           </div>
         )}
 
@@ -374,8 +374,8 @@ function App() {
                         <td style={styles.td}><span style={{...styles.badge, backgroundColor: techBadge.color, color: techBadge.text}}>{techBadge.label}</span></td>
                         <td style={styles.td}><span style={{...styles.badge, backgroundColor: insBadge.color, color: insBadge.text}}>{insBadge.label}</span></td>
                         <td style={styles.td}>
-                          <button type="button" onClick={() => toggleCarStatus(car.id)} style={{...styles.statusToggleBtn, backgroundColor: car.status === 'available' ? '#dcfce7' : '#fee2e2', color: car.status === 'available' ? '#15803d' : '#b91c1c'}}>
-                            {car.status === 'available' ? 'متاحة (اضغط للتغيير)' : 'مكراة (اضغط للتغيير)'}
+                          <button type="button" onClick={() => toggleCarStatus(car.id)} style={{border:'none', padding:'4px 10px', borderRadius:'50px', cursor:'pointer', fontWeight:'bold', backgroundColor: car.status === 'available' ? '#dcfce7' : '#fee2e2', color: car.status === 'available' ? '#15803d' : '#b91c1c'}}>
+                            {car.status === 'available' ? 'متاحة' : 'مكراة'}
                           </button>
                         </td>
                       </tr>
@@ -461,7 +461,6 @@ function App() {
 
       {printedContract && (
         <div className="print-container" style={printStyles.container}>
-          
           <div className="print-page" style={printStyles.page}>
             <div style={printStyles.headerZone}>
               <div style={printStyles.centeredHeaderWrapper}>
@@ -486,7 +485,7 @@ function App() {
               <p><strong>العنوان / Adresse:</strong> {printedContract.tenantAddress} | <strong>رقم الهاتف / Tél:</strong> {printedContract.tenantPhone}</p>
             </div>
 
-            <h4 style={printStyles.sectionTitle}>2. معلومات السيارة / Informations du Véحicule</h4>
+            <h4 style={printStyles.sectionTitle}>2. معلومات السيارة / Informations du Véhicule</h4>
             <div style={printStyles.gridText}>
               <p><strong>النوع والموديل / Marque et Modèle:</strong> {printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.year})</p>
               <p><strong>اللوحة المنجمية / Matricule:</strong> {printedContract.carDetails?.plateNumber} | <strong>رقم الهيكل / Châssis:</strong> {printedContract.carDetails?.chassisNumber}</p>
@@ -495,7 +494,7 @@ function App() {
 
             <h4 style={printStyles.sectionTitle}>3. تفاصيل فترة الكراء والدفع / Détails du Contrat</h4>
             <div style={printStyles.gridText}>
-              <p><strong>بداية الكراء:</strong> {printedContract.startDate} | <strong>نهاية الكراء:</strong> {printedContract.endDate}</p>
+              <p><strong>بداية العقد:</strong> {printedContract.startDate} | <strong>نهاية العقد:</strong> {printedContract.endDate}</p>
               <p><strong>سعر اليوم المتفق عليه:</strong> {printedContract.pricePerDay} دج | <strong>المبلغ الإجمالي المستحق:</strong> {printedContract.total} دج | <strong>مبلغ الضمان المودع / Caution:</strong> {printedContract.caution} دج</p>
             </div>
 
@@ -578,7 +577,7 @@ function App() {
                   </tr>
                   <tr>
                     <td style={printStyles.tableLabelTd}>استلمنا من السيد(ة) / Client</td>
-                    <td style={printStyles.fontWeightBold14}>{printedContract.tenantName}</td>
+                    <td style={printStyles.htmlFormatedText}>{printedContract.tenantName}</td>
                   </tr>
                   <tr>
                     <td style={printStyles.tableLabelTd}>المركبة المؤجرة / Véhicule</td>
@@ -622,7 +621,6 @@ const styles = {
   appLogoImg: { height: '60px', backgroundColor: 'white', padding: '3px', borderRadius: '4px', objectFit: 'contain' },
   mainTitleText: { fontSize: '18px', margin: 0, fontWeight: 'bold' },
   subTitleText: { fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' },
-  logo: { fontSize: '15px', margin: 0, fontWeight: 'bold' },
   navBtn: { color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#3b82f6', marginRight: '5px' },
   apiConfigurationZone: { padding: '15px 30px', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #cbd5e1' },
   apiLabel: { fontWeight: 'bold', color: '#1e293b' },
@@ -699,7 +697,7 @@ const printStyles = {
   quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' },
   tableLabelTd: { fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' },
   fontMonospace: { fontFamily: 'monospace' },
-  fontWeightBold14: { fontWeight: 'bold', fontSize: '14px' },
+  htmlFormatedText: { fontWeight: 'bold', fontSize: '14px' },
   fontWeightBold16Color111: { fontSize: '16px', fontWeight: 'bold', color: '#111' }
 };
 
