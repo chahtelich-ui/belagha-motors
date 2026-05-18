@@ -232,12 +232,13 @@ function App() {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      let selectedModelInstance;
+      // هنا تكمن القوة: تحديد النموذج بشكل ثابت ومباشر لتخطي قيود الفحص والربط
+      let modelName = "gemini-1.5-pro";
       if (apiStatus.modelUsed && apiStatus.modelUsed.includes("Flash")) {
-        selectedModelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      } else {
-        selectedModelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        modelName = "gemini-1.5-flash";
       }
+
+      const selectedModelInstance = genAI.getGenerativeModel({ model: modelName });
 
       let promptInstruction = "استخرج البيانات بدقة كالتالي تماماً بدون أي كلام إضافي:";
       if (scanType === 'license') {
