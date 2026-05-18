@@ -37,9 +37,10 @@ function App() {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('belagha_gemini_api_key') || '';
-  });
+  // حالة فحص الـ API Key واكتشاف نوعه وصلاحيته
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_gemini_api_key') || '');
+  const [apiStatus, setApiStatus] = useState({ tested: false, success: false, message: '', modelUsed: '' });
+  const [isTestingKey, setIsTestingKey] = useState(false);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -84,6 +85,70 @@ function App() {
       }
     }
   }, [contractForm.startDate, contractForm.endDate, contractForm.pricePerDay]);
+
+  // --- دالة الفحص الذكي واكتشاف جودة وإصدار مفتاح الـ API Key اللحظي ---
+  const handleTestApiKey = async () => {
+    if (!apiKey) {
+      setApiStatus({ tested: true, success: false, message: '❌ حقل المفتاح فارغ! يرجى لصق الـ API Key أولاً.', modelUsed: '' });
+      return;
+    }
+    setIsTestingKey(true);
+    setApiStatus({ tested: false, success: false, message: '', modelUsed: '' });
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      // تجربة اختبار الاتصال عبر نموذج Pro أولاً
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      const testResult = await model.generateContent("Respond with only one word: OK");
+      const responseText = (await testResult.response).text().trim();
+
+      if (responseText.includes("OK") || responseText.length > 0) {
+        setApiStatus({
+          tested: true,
+          success: true,
+          message: '🟢 المفتاح يعمل بنجاح كلي! تم تأكيد الاتصال بالسيرفر واستجابة الذكاء الاصطناعي سليمة 100%.',
+          modelUsed: 'Gemini 1.5 Pro (النسخة الاحترافية النشطة)'
+        });
+      }
+    } catch (proErr) {
+      console.error("Pro testing failed, testing Flash format...", proErr);
+      
+      // إذا فشل Pro، نجرب نموذج Flash الافتراضي لمعرفة نوع المشكلة
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const flashModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const testFlash = await flashModel.generateContent("OK");
+        const flashRes = (await testFlash.response).text().trim();
+
+        if (flashRes.length > 0) {
+          setApiStatus({
+            tested: true,
+            success: true,
+            message: '🟡 المفتاح يعمل ولكن على الخطة الافتراضية العامة فقط (Flash)، قد يواجه قيوداً مع الصور الكبيرة.',
+            modelUsed: 'Gemini 1.5 Flash (الخطة العامة القياسية)'
+          });
+          return;
+        }
+      } catch (flashErr) {
+        let errMsg = flashErr.message || '';
+        let cleanReason = '❌ المفتاح مرفوض تماماً من سيرفرات Google! ';
+        
+        if (errMsg.includes("API key not valid")) {
+          cleanReason += "السبب: كود المفتاح مكتوب بشكل خاطئ أو ناقص، يرجى إعادة نسخه بدقة.";
+        } else if (errMsg.includes("BILLING_LIMIT") || errMsg.includes("quota")) {
+          cleanReason += "السبب: الحساب تجاوز حد الاستهلاك المجاني أو يحتاج لتفعيل الفوترة لربط الصور.";
+        } else if (errMsg.includes("location") || errMsg.includes("not supported")) {
+          cleanReason += "السبب: حظر جغرافي إقليمي من جوجل على السيرفر المستدعي (حلها تفعيل VPN).";
+        } else {
+          cleanReason += `تفاصيل استجابة السيرفر: ${errMsg}`;
+        }
+
+        setApiStatus({ tested: true, success: false, message: cleanReason, modelUsed: 'مجهول / معطل' });
+      }
+    } finally {
+      setIsTestingKey(false);
+    }
+  };
 
   const getExpiryBadge = (expiryStr) => {
     if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
@@ -176,18 +241,19 @@ function App() {
       const pureBase64Content = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      // استخدام النموذج المناسب بناء على الفحص اللحظي لتفادي الانهيار
+      const model = genAI.getGenerativeModel({ model: apiStatus.modelUsed.includes("Flash") ? "gemini-1.5-flash" : "gemini-1.5-pro" });
 
-      let promptInstruction = "";
+      let promptInstruction = `استخرج البيانات النصية بدقة من هذه الوثيقة الجزائرية، وأعطني النتيجة كالتالي تماماً بدون أي كلام إضافي:`;
       if (scanType === 'license') {
-        promptInstruction = `استخرج البيانات التالية بدقة من صورة رخصة السياقة الجزائرية المرفقة، وأعطني النتيجة مرتبة كالتالي تماماً بدون أي كلام إضافي:
-        الاسم: [الاسم واللقب باللاتينية]
-        الرقم: [رقم الرخصة المكون من 18 رقماً]
+        promptInstruction += `
+        الاسم: [الاسم واللقب باللاتينية بالكامل]
+        الرقم: [رقم رخصة السياقة كاملاً المكون من أرقام]
         الميلاد: [تاريخ ومكان الميلاد]
-        الصدور: [تاريخ صدور الرخصة]`;
+        الصدور: [تاريخ صدور الوثيقة]`;
       } else {
-        promptInstruction = `استخرج رقم اللوحة المنجمية النظيف من هذه الوثيقة وأعطني إياه كالتالي تماماً:
-        اللوحة: [رقم اللوحة]`;
+        promptInstruction += `
+        اللوحة: [رقم اللوحة المنجمية مثل 03813-193-25]`;
       }
 
       const imagePayload = {
@@ -223,7 +289,7 @@ function App() {
       }
     } catch (err) {
       console.error(err);
-      alert("❌ حدث خطأ في استخراج البيانات. يرجى مراجعة صلاحية المفتاح والاتصال.");
+      alert("❌ تعذر الاستخراج التلقائي. يرجى التحقق من حالة اختبار الـ API Key في الأعلى.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -302,20 +368,38 @@ function App() {
           </div>
         </header>
 
+        {/* كابينة الفحص والتحليل الذكي اللحظي لـ API KEY */}
         <div style={styles.apiConfigurationZone}>
-          <label style={styles.apiLabel}>🔑 أدخل محرك الـ ذكاء الاصطناعي (Gemini API Key):</label>
-          <input 
-            type="password" 
-            value={apiKey} 
-            onChange={(e) => setApiKey(e.target.value)} 
-            placeholder="قم بلصق مفتاح الـ API Key الجديد والنشط هنا..." 
-            style={styles.apiKeyInputStyle}
-          />
+          <div style={{display:'flex', alignItems:'center', gap:'10px', width:'100%', flexWrap:'wrap'}}>
+            <label style={styles.apiLabel}>🔑 الصق الـ Gemini API Key المراد فحصه:</label>
+            <input 
+              type="password" 
+              value={apiKey} 
+              onChange={(e) => setApiKey(e.target.value)} 
+              placeholder="ضع كود المفتاح هنا للفحص..." 
+              style={styles.apiKeyInputStyle}
+            />
+            <button type="button" onClick={handleTestApiKey} disabled={isTestingKey} style={styles.testApiBtn}>
+              {isTestingKey ? "⏳ جاري التحليل..." : "🔍 فحص وتحديد نوع وصلاحية المفتاح"}
+            </button>
+          </div>
+          
+          {/* صندوق عرض نتائج تحليل الاتصال */}
+          {apiStatus.tested && (
+            <div style={{
+              marginTop: '12px', padding: '12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold',
+              backgroundColor: apiStatus.success ? '#dcfce7' : '#fee2e2', color: apiStatus.success ? '#15803d' : '#b91c1c',
+              border: `1px solid ${apiStatus.success ? '#bbf7d0' : '#fca5a5'}`
+            }}>
+              <div>{apiStatus.message}</div>
+              {apiStatus.success && <div style={{marginTop:'4px', color:'#1e3a8a'}}>📦 نوع إصدار المحرك النشط: {apiStatus.modelUsed}</div>}
+            </div>
+          )}
         </div>
 
         {isLoadingAI && (
           <div style={styles.loadingBanner}>
-            ⏳ جاري فحص المستند بالذكاء الاصطناعي وتحديث الحقول تلقائياً...
+            ⏳ جاري تفكيك صورة الوثيقة الجزائرية وملء الحقول تلقائياً...
           </div>
         )}
 
@@ -588,7 +672,7 @@ function App() {
                     <td style={printStyles.htmlFormatedText}>{printedContract.tenantName}</td>
                   </tr>
                   <tr>
-                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%'}}>المركبة المؤجرة / Véhicule</td>
+                    <td style={printStyles.tableLabelTd}>المركبة المؤجرة / Véhicule</td>
                     <td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td>
                   </tr>
                   <tr>
@@ -630,9 +714,10 @@ const styles = {
   mainTitleText: { fontSize: '18px', margin: 0, fontWeight: 'bold' },
   subTitleText: { fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' },
   navBtn: { color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#3b82f6', marginRight: '5px' },
-  apiConfigurationZone: { padding: '15px 30px', backgroundColor: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #cbd5e1' },
+  apiConfigurationZone: { padding: '15px 30px', backgroundColor: '#e2e8f0', borderBottom: '1px solid #cbd5e1' },
   apiLabel: { fontWeight: 'bold', color: '#1e293b' },
-  apiKeyInputStyle: { padding: '8px 12px', width: '380px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px' },
+  apiKeyInputStyle: { padding: '8px 12px', width: '380px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px', marginLeft:'10px' },
+  testApiBtn: { backgroundColor: '#1e3a8a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   loadingBanner: { backgroundColor: '#7c3aed', color: 'white', textAlign: 'center', padding: '12px', fontWeight: 'bold', fontSize: '14px' },
   cameraOverlay: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 },
   cameraModal: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '80%', maxWidth: '500px' },
