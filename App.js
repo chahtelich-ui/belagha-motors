@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-// استيراد الحزمة الرسمية المعتمدة والآمنة من شركة Google للذكاء الاصطناعي
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// --- أسطول السيارات المعتمد بالوكالة بقسنطينة ---
 const initialFleet = [
   {
     id: "car_1",
@@ -33,60 +31,43 @@ const initialFleet = [
 ];
 
 function App() {
-  // --- إدارة الحالة المدنية واللوجستية للتطبيق (State Management) ---
   const [fleet, setFleet] = useState(initialFleet);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAddCarForm, setShowAddCarForm] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  // حقن مفتاح الـ API الرسمي الجديد والنشط الخاص بك كقيمة افتراضية ثابتة
   const [apiKey, setApiKey] = useState(() => {
-    return localStorage.getItem('belagha_gemini_api_key') || 'AIzaSyABvthnvojU-wXz3D73a4Pg-EOIWMXqTms';
+    return localStorage.getItem('belagha_gemini_api_key') || '';
   });
 
-  // مراجع وسائط الكاميرا الحية لجهاز الـ iPad
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  // ذاكرة تخزين بيانات صور المستندات الملقطة أو المرفوعة
   const [tenantPhoto, setTenantPhoto] = useState(null);
   const [licensePhoto, setLicensePhoto] = useState(null);
   const [greyCardPhoto, setGreyCardPhoto] = useState(null);
 
-  // نموذج إضافة سيارة جديدة للأسطول
   const [newCarForm, setNewCarForm] = useState({
     brand: '', model: '', year: 2026, plateNumber: '',
     currentMileage: '', nextOilChangeDue: '', technicalCheckExpiry: '',
     insuranceExpiryDate: '', chassisNumber: ''
   });
 
-  // نموذج بيانات العقد الأساسي
   const [contractForm, setContractForm] = useState({
-    tenantName: '',
-    tenantPhone: '',
-    licenseNumber: '',
-    birthDatePlace: '',
-    licenseIssueDate: '',
-    tenantAddress: 'ali mendjli',
-    selectedCarId: '',
-    startDate: '',
-    endDate: '',
-    pricePerDay: 6000,
-    caution: 50000,
-    fuelStatus: 'ربع خزان'
+    tenantName: '', tenantPhone: '', licenseNumber: '', birthDatePlace: '',
+    licenseIssueDate: '', tenantAddress: 'ali mendjli', selectedCarId: '',
+    startDate: '', endDate: '', pricePerDay: 6000, caution: 50000, fuelStatus: 'ربع خزان'
   });
 
   const [calculatedDays, setCalculatedDays] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
   const [printedContract, setPrintedContract] = useState(null);
 
-  // تحديث وحفظ مفتاح الـ API تلقائياً في ذاكرة الكاش للمتصفح لمنع ضياعه عند إعادة تحميل الصفحة
   useEffect(() => {
     localStorage.setItem('belagha_gemini_api_key', apiKey);
   }, [apiKey]);
 
-  // الاحتساب التلقائي اللحظي لفترة الكراء والمسائل المالية بمجرد اختيار التواريخ
   useEffect(() => {
     if (contractForm.startDate && contractForm.endDate) {
       const start = new Date(contractForm.startDate);
@@ -104,28 +85,22 @@ function App() {
     }
   }, [contractForm.startDate, contractForm.endDate, contractForm.pricePerDay]);
 
-  // --- نظام فحص الفترات الزمنية للمراقبة التقنية والتأمين وزيت المحرك ---
-  const getExpiryBadge = (expiryDateString) => {
-    if (!expiryDateString) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
-    const expiryDate = new Date(expiryDateString);
-    const today = new Date();
-    const daysDiff = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
-
-    if (daysDiff < 0) return { label: `منتهي (${Math.abs(daysDiff)} يوم)`, color: "#fee2e2", text: "#991b1b" };
-    if (daysDiff <= 15) return { label: `ينتهي قريبًا (${daysDiff} يوم)`, color: "#fef3c7", text: "#92400e" };
+  const getExpiryBadge = (expiryStr) => {
+    if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+    if (days < 0) return { label: "منتهي", color: "#fee2e2", text: "#991b1b" };
+    if (days <= 15) return { label: "ينتهي قريبًا", color: "#fef3c7", text: "#92400e" };
     return { label: "ساري المفعول", color: "#dcfce7", text: "#166534" };
   };
 
   const getOilChangeBadge = (current, next) => {
     if (!next) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
     const remaining = Number(next) - Number(current);
-
-    if (remaining <= 0) return { label: `متجاوز بـ (${Math.abs(remaining)} كم)`, color: "#fee2e2", text: "#991b1b" };
-    if (remaining <= 1000) return { label: `تغيير فوري (${remaining} كم)`, color: "#fef3c7", text: "#92400e" };
+    if (remaining <= 0) return { label: "متجاوز", color: "#fee2e2", text: "#991b1b" };
+    if (remaining <= 1000) return { label: "تغيير فوري", color: "#fef3c7", text: "#92400e" };
     return { label: `${remaining} كم متبقي`, color: "#e0f2fe", text: "#0369a1" };
   };
 
-  // --- لوجستيات إدارة مركبات الأسطول ---
   const handleAddCarSubmit = (e) => {
     e.preventDefault();
     const addedCar = {
@@ -142,7 +117,6 @@ function App() {
     setFleet(fleet.map(car => car.id === id ? { ...car, status: car.status === 'available' ? 'rented' : 'available' } : car));
   };
 
-  // --- تشغيل وإدارة ملقط الكاميرا الحية للـ iPad ---
   const startCamera = async (mode) => {
     setCameraMode(mode);
     try {
@@ -153,7 +127,7 @@ function App() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
-      alert("يرجى تفعيل صلاحية استخدام الكاميرا من إعدادات المتصفح.");
+      alert("يرجى تفعيل صلاحية الكاميرا الحية.");
       setCameraMode(null);
     }
   };
@@ -163,8 +137,7 @@ function App() {
     const canvas = document.createElement('canvas');
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataUrl('image/jpeg');
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
@@ -188,10 +161,9 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // --- محرك وقارئ الذكاء الاصطناعي المستقر والمبسط لتفادي خطأ 400 نهائياً ---
   const executeRealTimeOcrScan = async (base64Image, scanType) => {
     if (!apiKey) {
-      alert("⚠️ تذكير: يرجى إدخال الـ API Key أولاً لتنشيط محرك المسح التلقائي.");
+      alert("⚠️ يرجى إدخال مفتاح الـ API Key في الحقل العلوي أولاً.");
       return;
     }
     
@@ -199,44 +171,33 @@ function App() {
     try {
       const mimeMatch = base64Image.match(/^data:(image\/\w+);base64,/);
       let fileMimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
-      if (fileMimeType.includes("jfif")) {
-        fileMimeType = "image/jpeg";
-      }
+      if (fileMimeType.includes("jfif")) fileMimeType = "image/jpeg";
       
       const pureBase64Content = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-pro"
-      });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
       let promptInstruction = "";
       if (scanType === 'license') {
-        promptInstruction = `أنت نظام خبير برخص السياقة الجزائرية البيومترية. 
-        استخرج البيانات التالية بدقة بالغة من الصورة وأعطني النتيجة كالتالي تماماً بدون أي كلام إضافي:
-        الاسم: [اكتب اللقب والاسم بالكامل باللاتينية]
-        الرقم: [اكتب رقم رخصة السياقة الطويل]
-        الميلاد: [اكتب تاريخ ومكان الميلاد]
-        الصدور: [اكتب تاريخ صدور الوثيقة]`;
+        promptInstruction = `استخرج البيانات التالية بدقة من صورة رخصة السياقة الجزائرية المرفقة، وأعطني النتيجة مرتبة كالتالي تماماً بدون أي كلام إضافي:
+        الاسم: [الاسم واللقب باللاتينية]
+        الرقم: [رقم الرخصة المكون من 18 رقماً]
+        الميلاد: [تاريخ ومكان الميلاد]
+        الصدور: [تاريخ صدور الرخصة]`;
       } else {
-        promptInstruction = `استخرج رقم اللوحة المنجمية النظيف للمركبة الجزائرية من هذه الوثيقة وأعطني إياه كالتالي تماماً:
-        اللوحة: [رقم اللوحة مثل 03813-193-25]`;
+        promptInstruction = `استخرج رقم اللوحة المنجمية النظيف من هذه الوثيقة وأعطني إياه كالتالي تماماً:
+        اللوحة: [رقم اللوحة]`;
       }
 
       const imagePayload = {
-        inlineData: {
-          data: pureBase64Content,
-          mimeType: fileMimeType
-        }
+        inlineData: { data: pureBase64Content, mimeType: fileMimeType }
       };
 
       const result = await model.generateContent([promptInstruction, imagePayload]);
       const response = await result.response;
       const textOutput = response.text();
-      
-      console.log("Gemini Engine Output Raw:", textOutput);
 
-      // تصفية النصوص برمجياً وملء المدخلات فوراً وبشكل سلس
       if (scanType === 'license') {
         const nameMatch = textOutput.match(/الاسم:\s*(.*)/);
         const numMatch = textOutput.match(/الرقم:\s*(.*)/);
@@ -261,8 +222,8 @@ function App() {
         }
       }
     } catch (err) {
-      console.error("Gemini API Engine Failure:", err);
-      alert("❌ حدث خطأ في معالجة السيرفر، يرجى كتابة البيانات يدوياً لإصدار العقد وطباعته.");
+      console.error(err);
+      alert("❌ حدث خطأ في استخراج البيانات. يرجى مراجعة صلاحية المفتاح والاتصال.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -302,68 +263,30 @@ function App() {
 
   return (
     <div style={styles.appContainer} dir="rtl">
-      
       <style>{`
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 0mm !important;
-          }
+          @page { size: A4 portrait; margin: 0mm !important; }
           body, html, #root { 
-            background: white !important; 
-            color: black !important; 
-            direction: rtl !important; 
-            margin: 0 !important; 
-            padding: 0 !important;
-            height: auto !important;
-            font-size: 11px !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            background: white !important; color: black !important; direction: rtl !important; 
+            margin: 0 !important; padding: 0 !important; height: auto !important; font-size: 11px !important;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
           .no-print { display: none !important; }
           .print-container { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
-          
           .print-page { 
-            display: block !important; 
-            box-sizing: border-box !important;
-            page-break-after: always !important; 
-            page-break-inside: avoid !important;
-            height: 297mm !important; 
-            max-height: 297mm !important;
-            overflow: hidden !important;
-            padding: 25px 35px !important;
-            margin: 0 !important;
-            position: relative !important;
+            display: block !important; box-sizing: border-box !important; page-break-after: always !important; 
+            page-break-inside: avoid !important; height: 297mm !important; max-height: 297mm !important;
+            overflow: hidden !important; padding: 25px 35px !important; margin: 0 !important; position: relative !important;
           }
-          
           .print-page:last-child { page-break-after: avoid !important; }
-          
-          .clauses-container {
-            display: flex !important;
-            justify-content: space-between !important;
-            gap: 20px !important;
-            width: 100% !important;
-            margin-top: 10px !important;
-          }
-          .clause-column {
-            width: 48% !important;
-            text-align: justify !important;
-          }
-          .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-          }
-          .print-table td {
-            border: 1px solid #000;
-            padding: 12px;
-            font-size: 13px;
-          }
+          .clauses-container { display: flex !important; justify-content: space-between !important; gap: 20px !important; width: 100% !important; margin-top: 10px !important; }
+          .clause-column { width: 48% !important; text-align: justify !important; }
+          .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          .print-table td { border: 1px solid #000; padding: 12px; font-size: 13px; }
         }
         @media screen { .print-container { display: none !important; } }
       `}</style>
 
-      {/* لوحة التحكم للشاشة */}
       <div className="no-print">
         <header style={styles.header}>
           <div style={styles.headerRightContainer}>
@@ -380,19 +303,19 @@ function App() {
         </header>
 
         <div style={styles.apiConfigurationZone}>
-          <label style={styles.apiLabel}>🔑 محرك الذكاء الاصطناعي الاحترافي (Gemini PRO Activated):</label>
+          <label style={styles.apiLabel}>🔑 أدخل محرك الـ ذكاء الاصطناعي (Gemini API Key):</label>
           <input 
             type="password" 
             value={apiKey} 
             onChange={(e) => setApiKey(e.target.value)} 
-            placeholder="أدخل مفتاحك الجديد الفعّال هنا إذا لزم الأمر..." 
+            placeholder="قم بلصق مفتاح الـ API Key الجديد والنشط هنا..." 
             style={styles.apiKeyInputStyle}
           />
         </div>
 
         {isLoadingAI && (
           <div style={styles.loadingBanner}>
-            ⏳ جاري تفكيك وثيقة رخصة السياقة الجزائرية وملء الحقول تلقائياً عبر سحابة Gemini Pro...
+            ⏳ جاري فحص المستند بالذكاء الاصطناعي وتحديث الحقول تلقائياً...
           </div>
         )}
 
@@ -402,7 +325,7 @@ function App() {
               <video ref={videoRef} autoPlay playsInline style={styles.videoStreamContainer}></video>
               <div style={styles.cameraActionRow}>
                 <button type="button" onClick={capturePhoto} style={styles.cameraBtn}>📸 التقاط الصورة</button>
-                <button type="button" onClick={() => { if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop()); setCameraMode(null); }} style={styles.cameraCancelBtn}>إلغاء</button>
+                <button type="button" onClick={() => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); setCameraMode(null); }} style={styles.cameraCancelBtn}>إلغاء</button>
               </div>
             </div>
           </div>
@@ -426,7 +349,7 @@ function App() {
                   <div style={styles.inputGroup}><label>رقم اللوحة المنجمية:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>العداد الحالي (كم):</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>موعد تغيير الزيت (كم):</label><input type="number" required value={newCarForm.nextOilChangeDue} onChange={e=>setNewCarForm({...newCarForm, nextOilChangeDue:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>انتهاء المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalCheckExpiry} onChange={e=>setNewCarForm({...newCarForm, technicalCheckExpiry} )} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>انتهاء المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalCheckExpiry} onChange={e=>setNewCarForm({...newCarForm, technicalCheckExpiry:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>رقم الهيكل (Chassis):</label><input type="text" required value={newCarForm.chassisNumber} onChange={e=>setNewCarForm({...newCarForm, chassisNumber:e.target.value})} style={styles.input}/></div>
                   <button type="submit" style={styles.saveCarBtn}>💾 حفظ وإدراج في الأسطول</button>
@@ -460,7 +383,7 @@ function App() {
                         <td style={styles.td}><span style={{...styles.badge, backgroundColor: insBadge.color, color: insBadge.text}}>{insBadge.label}</span></td>
                         <td style={styles.td}>
                           <button type="button" onClick={() => toggleCarStatus(car.id)} style={{...styles.statusToggleBtn, backgroundColor: car.status === 'available' ? '#dcfce7' : '#fee2e2', color: car.status === 'available' ? '#15803d' : '#b91c1c'}}>
-                            {car.status === 'available' ? 'متاحة (اضغط للتغيير)' : 'مكراة (اضغط للتغيير)'}
+                            {car.status === 'available' ? 'متاحة' : 'مكراة'}
                           </button>
                         </td>
                       </tr>
@@ -544,11 +467,8 @@ function App() {
         )}
       </div>
 
-      {/* قالب الطباعة المنظم والمغلق */}
       {printedContract && (
         <div className="print-container" style={printStyles.container}>
-          
-          {/* الصفحة 1 */}
           <div className="print-page" style={printStyles.page}>
             <div style={printStyles.headerZone}>
               <div style={printStyles.centeredHeaderWrapper}>
@@ -582,7 +502,7 @@ function App() {
 
             <h4 style={printStyles.sectionTitle}>3. تفاصيل فترة الكراء والدفع / Détails du Contrat</h4>
             <div style={printStyles.gridText}>
-              <p><strong>بداية الكراء:</strong> {printedContract.startDate} | <strong>نهاية الكراء:</strong> {printedContract.endDate}</p>
+              <p><strong>بداية العقد:</strong> {printedContract.startDate} | <strong>نهاية العقد:</strong> {printedContract.endDate}</p>
               <p><strong>سعر اليوم المتفق عليه:</strong> {printedContract.pricePerDay} دج | <strong>المبلغ الإجمالي المستحق:</strong> {printedContract.total} دج | <strong>مبلغ الضمان المودع / Caution:</strong> {printedContract.caution} دج</p>
             </div>
 
@@ -607,7 +527,6 @@ function App() {
             <div style={printStyles.pageNumber}>1/3</div>
           </div>
 
-          {/* الصفحة 2 */}
           <div className="print-page" style={printStyles.page}>
             <div style={printStyles.headerZone}>
               <div style={printStyles.centeredHeaderWrapper}>
@@ -648,7 +567,6 @@ function App() {
             <div style={printStyles.pageNumber}>2/3</div>
           </div>
 
-          {/* الصفحة 3 */}
           <div className="print-page" style={printStyles.page}>
             <div style={printStyles.headerZone}>
               <div style={printStyles.centeredHeaderWrapper}>
@@ -670,7 +588,7 @@ function App() {
                     <td style={printStyles.htmlFormatedText}>{printedContract.tenantName}</td>
                   </tr>
                   <tr>
-                    <td style={printStyles.tableLabelTd}>المركبة المؤجرة / Véhicule</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%'}}>المركبة المؤجرة / Véhicule</td>
                     <td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td>
                   </tr>
                   <tr>
@@ -704,7 +622,6 @@ function App() {
   );
 }
 
-// --- التنسيقات الهندسية للشاشة ---
 const styles = {
   appContainer: { fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' },
   header: { backgroundColor: '#1e293b', color: '#fff', padding: '12px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' },
