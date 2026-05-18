@@ -46,7 +46,6 @@ function App() {
 
   const [tenantPhoto, setTenantPhoto] = useState(null);
   const [licensePhoto, setLicensePhoto] = useState(null);
-  const [greyCardPhoto, setGreyCardPhoto] = useState(null);
 
   const [newCarForm, setNewCarForm] = useState({
     brand: '', model: '', year: 2026, plateNumber: '',
@@ -175,32 +174,54 @@ function App() {
   const startCamera = async (mode) => {
     setCameraMode(mode);
     try {
-      if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: mode === 'tenant' ? 'user' : 'environment' } 
-      });
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      const constraints = {
+        video: {
+          facingMode: mode === 'tenant' ? "user" : "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.play();
+      }
     } catch (err) {
-      alert("يرجى تفعيل صلاحية الكاميرا الحية.");
+      alert("يرجى التأكد من منح التطبيق صلاحية استخدام الكاميرا من إعدادات المتصفح.");
       setCameraMode(null);
     }
   };
 
   const capturePhoto = () => {
     if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataUrl('image/jpeg');
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
-    if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeRealTimeOcrScan(dataUrl, 'license'); }
-    if (cameraMode === 'greyCard') { setGreyCardPhoto(dataUrl); executeRealTimeOcrScan(dataUrl, 'greyCard'); }
+      if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
+      if (cameraMode === 'license') { 
+        setLicensePhoto(dataUrl); 
+        executeRealTimeOcrScan(dataUrl); 
+      }
 
-    if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
-    setCameraMode(null);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      setCameraMode(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleFileUpload = (e, mode) => {
@@ -210,13 +231,15 @@ function App() {
     reader.onloadend = () => {
       const dataUrl = reader.result;
       if (mode === 'tenant') setTenantPhoto(dataUrl);
-      if (mode === 'license') { setLicensePhoto(dataUrl); executeRealTimeOcrScan(dataUrl, 'license'); }
-      if (mode === 'greyCard') { setGreyCardPhoto(dataUrl); executeRealTimeOcrScan(dataUrl, 'greyCard'); }
+      if (mode === 'license') { 
+        setLicensePhoto(dataUrl); 
+        executeRealTimeOcrScan(dataUrl); 
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  const executeRealTimeOcrScan = async (base64Image, scanType) => {
+  const executeRealTimeOcrScan = async (base64Image) => {
     if (!apiKey) {
       alert("⚠️ يرجى إدخال مفتاح الـ API Key أولاً.");
       return;
@@ -232,7 +255,6 @@ function App() {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // هنا تكمن القوة: تحديد النموذج بشكل ثابت ومباشر لتخطي قيود الفحص والربط
       let modelName = "gemini-1.5-pro";
       if (apiStatus.modelUsed && apiStatus.modelUsed.includes("Flash")) {
         modelName = "gemini-1.5-flash";
@@ -240,12 +262,7 @@ function App() {
 
       const selectedModelInstance = genAI.getGenerativeModel({ model: modelName });
 
-      let promptInstruction = "استخرج البيانات بدقة كالتالي تماماً بدون أي كلام إضافي:";
-      if (scanType === 'license') {
-        promptInstruction += "\nالاسم: [الاسم واللقب باللاتينية بالكامل]\nالرقم: [رقم رخصة السياقة كاملاً]\nالميلاد: [تاريخ ومكان الميلاد]\nالصدور: [تاريخ صدور الوثيقة]";
-      } else {
-        promptInstruction += "\nاللوحة: [رقم اللوحة المنجمية مثل 03813-193-25]";
-      }
+      const promptInstruction = "أنت نظام محترف لقراءة رخص السياقة الجزائرية البيومترية. استخرج البيانات التالية بدقة كالتالي تماماً بدون أي تفاصيل أخرى:\nالاسم: [الاسم واللقب باللاتينية]\nالرقم: [رقم رخصة السياقة]\nالميلاد: [تاريخ ومكان الميلاد]\nالصدور: [تاريخ صدور الوثيقة]";
 
       const imagePayload = {
         inlineData: { data: pureBase64Content, mimeType: fileMimeType }
@@ -255,32 +272,22 @@ function App() {
       const response = await result.response;
       const textOutput = response.text();
 
-      if (scanType === 'license') {
-        const nameMatch = textOutput.match(/الاسم:\s*(.*)/);
-        const numMatch = textOutput.match(/الرقم:\s*(.*)/);
-        const birthMatch = textOutput.match(/الميلاد:\s*(.*)/);
-        const issueMatch = textOutput.match(/الصدور:\s*(.*)/);
+      const nameMatch = textOutput.match(/الاسم:\s*(.*)/);
+      const numMatch = textOutput.match(/الرقم:\s*(.*)/);
+      const birthMatch = textOutput.match(/الميلاد:\s*(.*)/);
+      const issueMatch = textOutput.match(/الصدور:\s*(.*)/);
 
-        setContractForm(prev => ({
-          ...prev,
-          tenantName: nameMatch ? nameMatch[1].trim() : prev.tenantName,
-          licenseNumber: numMatch ? numMatch[1].trim() : prev.licenseNumber,
-          birthDatePlace: birthMatch ? birthMatch[1].trim() : prev.birthDatePlace,
-          licenseIssueDate: issueMatch ? issueMatch[1].trim() : prev.licenseIssueDate
-        }));
-      } else if (scanType === 'greyCard') {
-        const plateMatch = textOutput.match(/اللوحة:\s*(.*)/);
-        if (plateMatch) {
-          const extractedPlateClean = plateMatch[1].trim().replace(/\s+/g, '');
-          const autoMatchedCar = fleet.find(car => car.plateNumber.replace(/\s+/g, '') === extractedPlateClean);
-          if (autoMatchedCar) {
-            setContractForm(prev => ({ ...prev, selectedCarId: autoMatchedCar.id }));
-          }
-        }
-      }
+      setContractForm(prev => ({
+        ...prev,
+        tenantName: nameMatch ? nameMatch[1].trim() : prev.tenantName,
+        licenseNumber: numMatch ? numMatch[1].trim() : prev.licenseNumber,
+        birthDatePlace: birthMatch ? birthMatch[1].trim() : prev.birthDatePlace,
+        licenseIssueDate: issueMatch ? issueMatch[1].trim() : prev.licenseIssueDate
+      }));
+
     } catch (err) {
       console.error(err);
-      alert("❌ تعذر استخراج البيانات. تحقق من حالة المفتاح العلوية.");
+      alert("❌ تعذر استخراج البيانات. تحقق من تفعيل الـ VPN أو صحة المفتاح.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -313,7 +320,7 @@ function App() {
         birthDatePlace: '', licenseIssueDate: '',
         selectedCarId: '', startDate: '', endDate: '', pricePerDay: 6000, caution: 50000, fuelStatus: 'ربع خزان'
       });
-      setTenantPhoto(null); setLicensePhoto(null); setGreyCardPhoto(null);
+      setTenantPhoto(null); setLicensePhoto(null);
       setActiveTab('dashboard');
     }, 500);
   };
@@ -343,14 +350,13 @@ function App() {
       <div className="no-print">
         <header style={styles.header}>
           <div style={styles.headerRightContainer}>
-            <img src="/logo.png" alt="Belagha Motors Logo" style={styles.appLogoImg} />
-            <div>
-              <h1 style={styles.mainTitleText}>BELAGHA MOTORS</h1>
+            <div style={styles.textLogoContainer}>
+              <h1 style={styles.mainTitleText}>✨ BELAGHA MOTORS</h1>
               <span style={styles.subTitleText}>MANAGEMENT & FLEET PRO</span>
             </div>
           </div>
-          <div>
-            <button style={styles.navBtn} onClick={() => setActiveTab('dashboard')}>لوحة الأسطول</button>
+          <div style={{display:'flex', gap:'5px'}}>
+            <button style={styles.navBtn} onClick={() => setActiveTab('dashboard')}>الأسطول</button>
             <button style={styles.navBtn} onClick={() => setActiveTab('new-contract')}>+ عقد جديد</button>
           </div>
         </header>
@@ -366,14 +372,13 @@ function App() {
               style={styles.apiKeyInputStyle}
             />
             <button type="button" onClick={handleTestApiKey} disabled={isTestingKey} style={styles.testApiBtn}>
-              {isTestingKey ? "⏳ جاري الفحص والتحليل..." : "🔍 فحص واكتشاف صلاحية المفتاح"}
+              {isTestingKey ? "⏳..." : "🔍 فحص"}
             </button>
           </div>
           
           {apiStatus.tested && (
             <div style={{ marginTop: '12px', padding: '12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', backgroundColor: statusUiColor, color: statusUiTextColor, border: `1px solid ${statusUiTextColor}` }}>
               <div>{statusUiMessage}</div>
-              {apiStatus.success && <div style={{marginTop:'4px', color:'#1e3a8a'}}>📦 نوع المحرك النشط: {apiStatus.modelUsed}</div>}
             </div>
           )}
         </div>
@@ -383,7 +388,7 @@ function App() {
         {cameraMode && (
           <div style={styles.cameraOverlay}>
             <div style={styles.cameraModal}>
-              <video ref={videoRef} autoPlay playsInline style={styles.videoStreamContainer}></video>
+              <video ref={videoRef} autoPlay playsInline muted style={styles.videoStreamContainer}></video>
               <div style={styles.cameraActionRow}>
                 <button type="button" onClick={capturePhoto} style={styles.cameraBtn}>📸 التقاط الصورة</button>
                 <button type="button" onClick={() => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); setCameraMode(null); }} style={styles.cameraCancelBtn}>إلغاء</button>
@@ -397,23 +402,23 @@ function App() {
             <div style={styles.sectionHeaderRow}>
               <h2 style={styles.sectionTitle}>مراقبة الأسطول وتتبع الصيانة والوثائق</h2>
               <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>
-                {showAddCarForm ? "✖ إغلاق النموذج" : "➕ إضافة سيارة جديدة للوكالة"}
+                {showAddCarForm ? "✖ إغلاق" : "➕ سيارة جديدة"}
               </button>
             </div>
 
             {showAddCarForm && (
               <div style={styles.addCarCardContainer}>
                 <form onSubmit={handleAddCarSubmit} style={styles.addCarGridForm}>
-                  <div style={styles.inputGroup}><label>الماركة (Brand):</label><input type="text" required value={newCarForm.brand} onChange={e=>setNewCarForm({...newCarForm, brand:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>الموديل (Model):</label><input type="text" required value={newCarForm.model} onChange={e=>setNewCarForm({...newCarForm, model:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>الماركة:</label><input type="text" required value={newCarForm.brand} onChange={e=>setNewCarForm({...newCarForm, brand:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>الموديل:</label><input type="text" required value={newCarForm.model} onChange={e=>setNewCarForm({...newCarForm, model:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>سنة الصنع:</label><input type="number" required value={newCarForm.year} onChange={e=>setNewCarForm({...newCarForm, year:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>رقم اللوحة المنجمية:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>العداد الحالي (كم):</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>موعد تغيير الزيت (كم):</label><input type="number" required value={newCarForm.nextOilChangeDue} onChange={e=>setNewCarForm({...newCarForm, nextOilChangeDue:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>رقم اللوحة:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>العداد الحالي:</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تغيير الزيت التالي:</label><input type="number" required value={newCarForm.nextOilChangeDue} onChange={e=>setNewCarForm({...newCarForm, nextOilChangeDue:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>انتهاء المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalCheckExpiry} onChange={e=>setNewCarForm({...newCarForm, technicalCheckExpiry:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>رقم الهيكل (Chassis):</label><input type="text" required value={newCarForm.chassisNumber} onChange={e=>setNewCarForm({...newCarForm, chassisNumber:e.target.value})} style={styles.input}/></div>
-                  <button type="submit" style={styles.saveCarBtn}>💾 حفظ وإدراج في الأسطول</button>
+                  <div style={styles.inputGroup}><label>رقم الهيكل:</label><input type="text" required value={newCarForm.chassisNumber} onChange={e=>setNewCarForm({...newCarForm, chassisNumber:e.target.value})} style={styles.input}/></div>
+                  <button type="submit" style={styles.saveCarBtn}>💾 حفظ في الأسطول</button>
                 </form>
               </div>
             )}
@@ -423,11 +428,11 @@ function App() {
                 <thead>
                   <tr style={styles.thRow}>
                     <th style={styles.th}>معلومات السيارة</th>
-                    <th style={styles.th}>العداد الحالي</th>
-                    <th style={styles.th}>تغيير الزيت (Vidange)</th>
-                    <th style={styles.th}>المراقبة التقنية</th>
-                    <th style={styles.th}>التأمين (Assurance)</th>
-                    <th style={styles.th}>حالة المركبة الآن</th>
+                    <th style={styles.th}>العداد</th>
+                    <th style={styles.th}>Vidange</th>
+                    <th style={styles.th}>المراقبة</th>
+                    <th style={styles.th}>Assurance</th>
+                    <th style={styles.th}>الحالة</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -437,7 +442,7 @@ function App() {
                     const insBadge = getExpiryBadge(car.insuranceExpiryDate);
                     return (
                       <tr key={car.id} style={styles.tr}>
-                        <td style={styles.td}><strong>{car.brand} {car.model}</strong><div style={{fontSize: '12px', color: '#6b7280'}}>{car.plateNumber}</div></td>
+                        <td style={styles.td}><strong>{car.brand} {car.model}</strong><div style={{fontSize: '11px', color: '#6b7280'}}>{car.plateNumber}</div></td>
                         <td style={styles.monospaceTd}>{car.currentMileage} كم</td>
                         <td style={styles.td}><span style={{...styles.badge, backgroundColor: oilBadge.color, color: oilBadge.text}}>{oilBadge.label}</span></td>
                         <td style={styles.td}><span style={{...styles.badge, backgroundColor: techBadge.color, color: techBadge.text}}>{techBadge.label}</span></td>
@@ -466,19 +471,19 @@ function App() {
                     {tenantPhoto ? <img src={tenantPhoto} alt="الزبون" style={styles.fullCoverImage} /> : <div style={styles.placeholderText}>لا توجد صورة</div>}
                   </div>
                   <div style={styles.flexColumnGap10}>
-                    <button type="button" onClick={() => startCamera('tenant')} style={styles.cameraBtn}>📷 التقاط صورة بالـ iPad</button>
-                    <label style={styles.uploadLabelStandard}>📂 اختيار صورة جاهزة<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={styles.displayNone}/></label>
+                    <button type="button" onClick={() => startCamera('tenant')} style={styles.cameraBtn}>📷 التقاط صورة</button>
+                    <label style={styles.uploadLabelStandard}>📂 اختيار ملف<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={{display:'none'}}/></label>
                   </div>
                 </div>
 
-                <h3 style={styles.marginTop20SubTitle}>2. مسح رخصة السياقة بالذكاء الاصطناعي المباشر</h3>
+                <h3 style={styles.marginTop20SubTitle}>2. مسح رخصة السياقة بالذكاء الاصطناعي</h3>
                 <div style={styles.cameraBox}>
                   <div style={styles.cameraView}>
                     {licensePhoto ? <img src={licensePhoto} alt="الرخصة" style={styles.fullCoverImage} /> : <div style={styles.placeholderText}>لم يتم المسح</div>}
                   </div>
                   <div style={styles.flexColumnGap10}>
-                    <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح الرخصة بالكاميرا</button>
-                    <label style={styles.uploadLabelBlue}>📂 رفع ملف الرخصة<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'license')} style={styles.displayNone}/></label>
+                    <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح الرخصة</button>
+                    <label style={styles.uploadLabelBlue}>📂 رفع ملف الرخصة<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'license')} style={{display:'none'}}/></label>
                   </div>
                 </div>
 
@@ -492,18 +497,7 @@ function App() {
                   <div style={styles.inputGroup}><label>تاريخ صدور الرخصة:</label><input type="text" required value={contractForm.licenseIssueDate} onChange={e => setContractForm({...contractForm, licenseIssueDate: e.target.value})} placeholder="مثال: 17.12.2025" style={styles.input}/></div>
                 </div>
 
-                <h3 style={styles.marginTop20SubTitle}>3. مسح وفحص البطاقة الرمادية للمركبة</h3>
-                <div style={styles.cameraBox}>
-                  <div style={styles.cameraView}>
-                    {greyCardPhoto ? <img src={greyCardPhoto} alt="البطاقة" style={styles.fullCoverImage} /> : <div style={styles.placeholderText}>لم يتم الفحص</div>}
-                  </div>
-                  <div style={styles.flexColumnGap10}>
-                    <button type="button" onClick={() => startCamera('greyCard')} style={styles.cameraBtn}>🚗 مسح البطاقة الرمادية</button>
-                    <label style={styles.uploadLabelPurple}>📂 رفع ملف البطاقة الرمادية<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'greyCard')} style={styles.displayNone}/></label>
-                  </div>
-                </div>
-
-                <div style={styles.formGrid}>
+                <div style={styles.formGrid} style={{marginTop:'20px'}}>
                   <div style={styles.inputGroup}>
                     <label>اختر السيارة للتأجير:</label>
                     <select required value={contractForm.selectedCarId} onChange={e => setContractForm({...contractForm, selectedCarId: e.target.value})} style={styles.input}>
@@ -511,12 +505,12 @@ function App() {
                       {fleet.map(car => (<option key={car.id} value={car.id} disabled={car.status !== 'available'}>{car.brand} {car.model}</option>))}
                     </select>
                   </div>
-                  <div style={styles.inputGroup}><label>تاريخ الاستلام (البدء):</label><input type="datetime-local" required value={contractForm.startDate} onChange={e => setContractForm({...contractForm, startDate: e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>تاريخ الإرجاع (النهاية):</label><input type="datetime-local" required value={contractForm.endDate} onChange={e => setContractForm({...contractForm, endDate: e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ الاستلام:</label><input type="datetime-local" required value={contractForm.startDate} onChange={e => setContractForm({...contractForm, startDate: e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ الإرجاع:</label><input type="datetime-local" required value={contractForm.endDate} onChange={e => setContractForm({...contractForm, endDate: e.target.value})} style={styles.input}/></div>
                 </div>
 
                 <div style={styles.formGridCombined}>
-                  <div style={styles.inputGroup}><label>سعر الكراء لليوم (دج):</label><input type="number" required value={contractForm.pricePerDay} onChange={e => setContractForm({...contractForm, pricePerDay: e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>السعر لليوم (دج):</label><input type="number" required value={contractForm.pricePerDay} onChange={e => setContractForm({...contractForm, pricePerDay: e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>مبلغ الضمان / Caution (دج):</label><input type="number" required value={contractForm.caution} onChange={e => setContractForm({...contractForm, caution: e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>حالة خزان الوقود:</label><input type="text" required value={contractForm.fuelStatus} onChange={e => setContractForm({...contractForm, fuelStatus: e.target.value})} style={styles.input}/></div>
                 </div>
@@ -533,7 +527,7 @@ function App() {
           <div className="print-page" style={{ padding: '25px 35px', boxSizing: 'border-box', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'center', borderBottom: '2px solid black', paddingBottom: '10px', alignItems: 'center' }}>
               <div style={{ width: '100%', textAlign: 'center' }}>
-                <img src="/logo.png" alt="Belagha Motors Original Logo" style={{ height: '85px', objectFit: 'contain', maxWidth: '100%' }} />
+                <h2 style={{fontSize: '24px', margin: 0, fontWeight: 'bold', letterSpacing: '1px'}}>BELAGHA MOTORS</h2>
                 <span style={{ fontSize: '12px', display: 'block', marginTop: '5px', fontWeight: 'bold' }}>Constantine, Algérie | Tél: 0554 28 19 83</span>
                 <span style={{ fontSize: '10px', color: '#333' }}>RC: 25/00-038169 A 15 | NIF: 1852501093731100000</span>
               </div>
@@ -591,7 +585,7 @@ function App() {
           <div className="print-page" style={{ padding: '25px 35px', boxSizing: 'border-box', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'center', borderBottom: '2px solid black', paddingBottom: '10px', alignItems: 'center' }}>
               <div style={{ width: '100%', textAlign: 'center' }}>
-                <img src="/logo.png" alt="Belagha Motors Logo" style={{ height: '70px', objectFit: 'contain' }} />
+                <h2 style={{fontSize: '20px', margin: 0, fontWeight: 'bold'}}>BELAGHA MOTORS</h2>
               </div>
             </div>
             
@@ -631,7 +625,7 @@ function App() {
           <div className="print-page" style={{ padding: '25px 35px', boxSizing: 'border-box', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'center', borderBottom: '2px solid black', paddingBottom: '10px', alignItems: 'center' }}>
               <div style={{ width: '100%', textAlign: 'center' }}>
-                <img src="/logo.png" alt="Belagha Motors Logo" style={{ height: '70px', objectFit: 'contain' }} />
+                <h2 style={{fontSize: '20px', margin: 0, fontWeight: 'bold'}}>BELAGHA MOTORS</h2>
               </div>
             </div>
             
@@ -687,21 +681,21 @@ const styles = {
   appContainer: { fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' },
   header: { backgroundColor: '#1e293b', color: '#fff', padding: '12px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' },
   headerRightContainer: { display: 'flex', alignItems: 'center', gap: '15px' },
-  appLogoImg: { height: '60px', backgroundColor: 'white', padding: '3px', borderRadius: '4px', objectFit: 'contain' },
-  mainTitleText: { fontSize: '18px', margin: 0, fontWeight: 'bold' },
+  textLogoContainer: { display: 'flex', flexDirection: 'column' },
+  mainTitleText: { fontSize: '18px', margin: 0, fontWeight: 'bold', color: '#fff' },
   subTitleText: { fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' },
-  navBtn: { color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#3b82f6', marginRight: '5px' },
+  navBtn: { color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#3b82f6' },
   apiConfigurationZone: { padding: '15px 30px', backgroundColor: '#e2e8f0', borderBottom: '1px solid #cbd5e1' },
   apiLabel: { fontWeight: 'bold', color: '#1e293b' },
-  apiKeyInputStyle: { padding: '8px 12px', width: '380px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px', marginLeft:'10px' },
-  testApiBtn: { backgroundColor: '#1e3a8a', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  apiKeyInputStyle: { padding: '8px 12px', width: '300px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px' },
+  testApiBtn: { backgroundColor: '#1e3a8a', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' },
   loadingBanner: { backgroundColor: '#7c3aed', color: 'white', textAlign: 'center', padding: '12px', fontWeight: 'bold', fontSize: '14px' },
   cameraOverlay: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 },
-  cameraModal: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '80%', maxWidth: '500px' },
-  videoStreamContainer: { width: '100%', borderRadius: '8px', backgroundColor: '#000' },
+  cameraModal: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '90%', maxWidth: '500px' },
+  videoStreamContainer: { width: '100%', height: 'auto', borderRadius: '8px', backgroundColor: '#000' },
   cameraActionRow: { display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'center' },
   cameraCancelBtn: { border: 'none', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', backgroundColor: '#b91c1c', color: 'white' },
-  mainContent: { padding: '30px' },
+  mainContent: { padding: '20px' },
   sectionHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
   sectionTitle: { fontSize: '18px', margin: 0, borderRight: '4px solid #2563eb', paddingRight: '10px', fontWeight: 'bold' },
   addCarMainBtn: { backgroundColor: '#1e3a8a', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
@@ -711,31 +705,28 @@ const styles = {
   tableWrapper: { backgroundColor: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'right' },
   thRow: { backgroundColor: '#f1f5f9' },
-  th: { padding: '14px', fontWeight: 'bold' },
+  th: { padding: '12px', fontWeight: 'bold', fontSize: '13px' },
   tr: { borderBottom: '1px solid #edf2f7' },
-  td: { padding: '14px' },
-  monospaceTd: { padding: '14px', fontFamily: 'monospace', fontWeight: 'bold' },
-  badge: { padding: '4px 10px', borderRadius: '50px', fontSize: '12px', fontWeight: 'bold' },
-  statusToggleBtn: { border: 'none', padding: '4px 10px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold' },
+  td: { padding: '12px', fontSize: '13px' },
+  monospaceTd: { padding: '12px', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '13px' },
+  badge: { padding: '4px 8px', borderRadius: '50px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
+  statusToggleBtn: { border: 'none', padding: '4px 8px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' },
   subSectionTitle: { fontSize: '14px', margin: 0, fontWeight: 'bold', color: '#1e293b' },
   cameraBox: { display: 'flex', alignItems: 'center', gap: '20px', backgroundColor: '#f9fafb', padding: '15px', borderRadius: '6px', marginTop: '5px' },
   cameraView: { width: '100px', height: '115px', backgroundColor: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #9ca3af', borderRadius: '4px', overflow: 'hidden' },
-  placeholderText: { color: '#9ca3af', fontSize: '12px' },
+  placeholderText: { color: '#9ca3af', fontSize: '11px' },
   fullCoverImage: { width: '100%', height: '100%', objectFit: 'cover' },
   flexColumnGap10: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  cameraBtn: { backgroundColor: '#7c3aed', color: 'white', border: 'none', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px' },
-  uploadLabelStandard: { backgroundColor: '#4b5563', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block' },
-  uploadLabelBlue: { backgroundColor: '#0284c7', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block' },
-  uploadLabelPurple: { backgroundColor: '#7c3aed', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block' },
+  cameraBtn: { backgroundColor: '#7c3aed', color: 'white', border: 'none', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', fontSize: '13px' },
+  uploadLabelStandard: { backgroundColor: '#4b5563', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block', fontSize: '13px', textAlign: 'center' },
+  uploadLabelBlue: { backgroundColor: '#0284c7', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block', fontSize: '13px', textAlign: 'center' },
   marginTop20SubTitle: { fontSize: '14px', margin: 0, fontWeight: 'bold', color: '#1e293b', marginTop: '20px' },
-  formCard: { backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' },
-  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', marginTop: '10px' },
-  formGridCombined: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', borderTop: '1px dashed #e5e7eb', paddingTop: '15px', marginTop: '15px' },
+  formCard: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' },
+  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '10px' },
+  formGridCombined: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', borderTop: '1px dashed #e5e7eb', paddingTop: '15px', marginTop: '15px' },
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  input: { padding: '10px', border: '1px solid #d1d5db', borderRadius: '4px' },
-  submitButton: { width: '100%', backgroundColor: '#166534', color: 'white', padding: '14px', cursor: 'pointer', fontWeight: 'bold', border: 'none', borderRadius: '6px', marginTop: '20px', fontSize: '15px' },
-  marginTop30: { marginTop: '30px' },
-  displayNone: { display: 'none' }
+  input: { padding: '10px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '13px' },
+  submitButton: { width: '100%', backgroundColor: '#166534', color: 'white', padding: '14px', cursor: 'pointer', fontWeight: 'bold', border: 'none', borderRadius: '6px', marginTop: '20px', fontSize: '15px' }
 };
 
 const printStyles = {
