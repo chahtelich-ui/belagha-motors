@@ -95,8 +95,9 @@ function App() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-      const testResult = await model.generateContent("Respond with only OK");
+      // استخدام نص ثابت صريح ومباشر لمنع ارتباك الـ Compiler
+      const modelPro = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      const testResult = await modelPro.generateContent("Respond with only OK");
       const responseText = (await testResult.response).text().trim();
 
       if (responseText.length > 0) {
@@ -110,8 +111,9 @@ function App() {
     } catch (proErr) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const flashModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const testFlash = await flashModel.generateContent("OK");
+        // استخدام نص ثابت صريح ومباشر هنا أيضاً كخيار بديل لقسم الفلاش
+        const modelFlash = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const testFlash = await modelFlash.generateContent("OK");
         const flashRes = (await testFlash.response).text().trim();
 
         if (flashRes.length > 0) {
@@ -121,7 +123,6 @@ function App() {
             message: 'SUCCESS_FLASH',
             modelUsed: 'Gemini 1.5 Flash'
           });
-          return;
         }
       } catch (flashErr) {
         let errMsg = flashErr.message || '';
@@ -136,7 +137,7 @@ function App() {
         }
         setApiStatus({ tested: true, success: false, message: finalErr, modelUsed: '' });
       }
-    } final {
+    } finally {
       setIsTestingKey(false);
     }
   };
@@ -232,7 +233,14 @@ function App() {
       const pureBase64Content = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: apiStatus.modelUsed.includes("Flash") ? "gemini-1.5-flash" : "gemini-1.5-pro" });
+      
+      // استدعاء الموديل بنصوص ثابتة وصريحة تماماً لحل مشكلة الـ Expression المسببة للفشل
+      let selectedModelInstance;
+      if (apiStatus.modelUsed && apiStatus.modelUsed.includes("Flash")) {
+        selectedModelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      } else {
+        selectedModelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      }
 
       let promptInstruction = `استخرج البيانات بدقة كالتالي تماماً بدون أي كلام إضافي:`;
       if (scanType === 'license') {
@@ -250,7 +258,7 @@ function App() {
         inlineData: { data: pureBase64Content, mimeType: fileMimeType }
       };
 
-      const result = await model.generateContent([promptInstruction, imagePayload]);
+      const result = await selectedModelInstance.generateContent([promptInstruction, imagePayload]);
       const response = await result.response;
       const textOutput = response.text();
 
@@ -317,7 +325,6 @@ function App() {
     }, 500);
   };
 
-  // معالجة النصوص المنفصلة لعرضها واجهة المستخدم دون كسر الـ Compiler
   let statusUiColor = '#fee2e2';
   let statusUiTextColor = '#991b1b';
   let statusUiMessage = '';
@@ -646,7 +653,7 @@ function App() {
                   </tr>
                   <tr>
                     <td style={printStyles.tableLabelTd}>استلمنا من السيد(ة) / Client</td>
-                    <td style={printStyles.htmlFormatedText}>{printedContract.tenantName}</td>
+                    <td>{printedContract.tenantName}</td>
                   </tr>
                   <tr>
                     <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%'}}>المركبة المؤجرة / Véhicule</td>
@@ -767,7 +774,6 @@ const printStyles = {
   quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' },
   tableLabelTd: { fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' },
   fontMonospace: { fontFamily: 'monospace' },
-  htmlFormatedText: { fontWeight: 'bold', fontSize: '14px' },
   fontWeightBold16Color111: { fontSize: '16px', fontWeight: 'bold', color: '#111' }
 };
 
