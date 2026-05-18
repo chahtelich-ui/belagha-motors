@@ -148,7 +148,7 @@ function App() {
   };
 
   const getOilChangeBadge = (current, next) => {
-    if (!next) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    if (!next) return { label: "غير مححدد", color: "#f3f4f6", text: "#4b5563" };
     const remaining = Number(next) - Number(current);
     if (remaining <= 0) return { label: "متجاوز", color: "#fee2e2", text: "#991b1b" };
     if (remaining <= 1000) return { label: "تغيير فوري", color: "#fef3c7", text: "#92400e" };
@@ -194,7 +194,7 @@ function App() {
         videoRef.current.play();
       }
     } catch (err) {
-      alert("يرجى التأكد من منح التطبيق صلاحية استخدام الكاميرا من إعدادات المتصفح.");
+      alert("يرجى تفعيل صلاحية الكاميرا الحية من إعدادات المتصفح.");
       setCameraMode(null);
     }
   };
@@ -262,7 +262,7 @@ function App() {
 
       const selectedModelInstance = genAI.getGenerativeModel({ model: modelName });
 
-      const promptInstruction = "أنت نظام محترف لقراءة رخص السياقة الجزائرية البيومترية. استخرج البيانات التالية بدقة كالتالي تماماً بدون أي تفاصيل أخرى:\nالاسم: [الاسم واللقب باللاتينية]\nالرقم: [رقم رخصة السياقة]\nالميلاد: [تاريخ ومكان الميلاد]\nالصدور: [تاريخ صدور الوثيقة]";
+      const promptInstruction = "أنت نظام خبير برخص السياقة الجزائرية البيومترية. استخرج البيانات التالية بدقة بالغة وأعطني النتيجة كالتالي تماماً بدون أي تفاصيل إضافية:\nالاسم: [الاسم واللقب باللاتينية بالكامل]\nالرقم: [رقم رخصة السياقة]\nالميلاد: [تاريخ ومكان الميلاد]\nالصدور: [تاريخ صدور الوثيقة]";
 
       const imagePayload = {
         inlineData: { data: pureBase64Content, mimeType: fileMimeType }
@@ -287,7 +287,7 @@ function App() {
 
     } catch (err) {
       console.error(err);
-      alert("❌ تعذر استخراج البيانات. تحقق من تفعيل الـ VPN أو صحة المفتاح.");
+      alert("❌ تعذر استخراج البيانات. يرجى مراجعة الاتصال.");
     } finally {
       setIsLoadingAI(false);
     }
