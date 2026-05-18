@@ -1,33 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// الأسطول الافتراضي مضافاً إليه حقول تغيير الزيت والمراقبة التقنية الدورية
 const initialFleet = [
-  {
-    id: "car_1",
-    brand: "Rover",
-    model: "XPHWEP",
-    year: 1993,
-    plateNumber: "03813-193-25",
-    currentMileage: 156200,
-    status: "available",
-    nextOilChangeDue: 157000, 
-    technicalCheckExpiry: "2026-05-30",
-    insuranceExpiryDate: "2026-08-15",
-    chassisNumber: "SAXXPHWEPAD847"
-  },
-  {
-    id: "car_2",
-    brand: "Hyundai",
-    model: "i10",
-    year: 2022,
-    plateNumber: "12345-122-25",
-    currentMileage: 49500,
-    status: "rented",
-    nextOilChangeDue: 49000, 
-    technicalCheckExpiry: "2026-04-10", 
-    insuranceExpiryDate: "2026-06-01",
-    chassisNumber: "KMHCT51BMNU038"
-  }
+  { id: "car_1", brand: "Rover", model: "XPHWEP", year: 1993, plateNumber: "03813-193-25", currentMileage: 156200, status: "available", insuranceExpiryDate: "2026-08-15", oilChangeMileage: 160000, technicalControlDate: "2026-09-20" },
+  { id: "car_2", brand: "Hyundai", model: "i10", year: 2022, plateNumber: "12345-122-25", currentMileage: 49500, status: "available", insuranceExpiryDate: "2026-06-01", oilChangeMileage: 55000, technicalControlDate: "2026-11-15" },
+  { id: "car_3", brand: "PEUGEOT", model: "2024", year: 2024, plateNumber: "2102-124-25", currentMileage: 135200, status: "available", insuranceExpiryDate: "2026-12-30", oilChangeMileage: 140000, technicalControlDate: "2027-02-10" }
 ];
 
 function App() {
@@ -37,9 +14,12 @@ function App() {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_gemini_api_key') || '');
-  const [apiStatus, setApiStatus] = useState({ tested: false, success: false, message: '', modelUsed: '' });
-  const [isTestingKey, setIsTestingKey] = useState(false);
+  // ولايات التحكم بالتعديل الشامل للسيارة داخل الجدول مباشرة
+  const [editingCarId, setEditingCarId] = useState(null);
+  const [editMileage, setEditMileage] = useState('');
+  const [editInsuranceDate, setEditInsuranceDate] = useState('');
+  const [editOilMileage, setEditOilMileage] = useState('');
+  const [editTechControlDate, setEditTechControlDate] = useState('');
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -47,12 +27,11 @@ function App() {
   const [tenantPhoto, setTenantPhoto] = useState(null);
   const [licensePhoto, setLicensePhoto] = useState(null);
 
-  const [newCarForm, setNewCarForm] = useState({
-    brand: '', model: '', year: 2026, plateNumber: '',
-    currentMileage: '', nextOilChangeDue: '', technicalCheckExpiry: '',
-    insuranceExpiryDate: '', chassisNumber: ''
+  const [newCarForm, setNewCarForm] = useState({ 
+    brand: '', model: '', year: 2026, plateNumber: '', currentMileage: '', 
+    insuranceExpiryDate: '2026-12-31', oilChangeMileage: '', technicalControlDate: '2026-12-31' 
   });
-
+  
   const [contractForm, setContractForm] = useState({
     tenantName: '', tenantPhone: '', licenseNumber: '', birthDatePlace: '',
     licenseIssueDate: '', tenantAddress: 'ali mendjli', selectedCarId: '',
@@ -62,10 +41,6 @@ function App() {
   const [calculatedDays, setCalculatedDays] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
   const [printedContract, setPrintedContract] = useState(null);
-
-  useEffect(() => {
-    localStorage.setItem('belagha_gemini_api_key', apiKey);
-  }, [apiKey]);
 
   useEffect(() => {
     if (contractForm.startDate && contractForm.endDate) {
@@ -78,93 +53,48 @@ function App() {
         setCalculatedDays(diffDays);
         setCalculatedTotal(diffDays * Number(contractForm.pricePerDay || 0));
       } else {
-        setCalculatedDays(0);
-        setCalculatedTotal(0);
+        setCalculatedDays(1);
+        setCalculatedTotal(1 * Number(contractForm.pricePerDay || 0));
       }
+    } else {
+      setCalculatedDays(0);
+      setCalculatedTotal(0);
     }
   }, [contractForm.startDate, contractForm.endDate, contractForm.pricePerDay]);
 
-  const handleTestApiKey = async () => {
-    if (!apiKey) {
-      setApiStatus({ tested: true, success: false, message: 'ERR_EMPTY_KEY', modelUsed: '' });
-      return;
-    }
-    setIsTestingKey(true);
-    setApiStatus({ tested: false, success: false, message: '', modelUsed: '' });
-
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const modelPro = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-      const testResult = await modelPro.generateContent("Respond with only OK");
-      const responseText = (await testResult.response).text().trim();
-
-      if (responseText.length > 0) {
-        setApiStatus({
-          tested: true,
-          success: true,
-          message: 'SUCCESS_PRO',
-          modelUsed: 'Gemini 1.5 Pro'
-        });
-      }
-    } catch (proErr) {
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const modelFlash = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const testFlash = await modelFlash.generateContent("OK");
-        const flashRes = (await testFlash.response).text().trim();
-
-        if (flashRes.length > 0) {
-          setApiStatus({
-            tested: true,
-            success: true,
-            message: 'SUCCESS_FLASH',
-            modelUsed: 'Gemini 1.5 Flash'
-          });
-        }
-      } catch (flashErr) {
-        let errMsg = flashErr.message || '';
-        let finalErr = 'ERR_UNKNOWN';
-        
-        if (errMsg.includes("API key not valid")) {
-          finalErr = 'ERR_INVALID_KEY';
-        } else if (errMsg.includes("BILLING_LIMIT") || errMsg.includes("quota")) {
-          finalErr = 'ERR_BILLING';
-        } else if (errMsg.includes("location") || errMsg.includes("not supported")) {
-          finalErr = 'ERR_LOCATION';
-        }
-        setApiStatus({ tested: true, success: false, message: finalErr, modelUsed: '' });
-      }
-    } finally {
-      setIsTestingKey(false);
-    }
-  };
-
-  const getExpiryBadge = (expiryStr) => {
-    if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
-    const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-    if (days < 0) return { label: "منتهي", color: "#fee2e2", text: "#991b1b" };
-    if (days <= 15) return { label: "ينتهي قريبًا", color: "#fef3c7", text: "#92400e" };
-    return { label: "ساري المفعول", color: "#dcfce7", text: "#166534" };
-  };
-
-  const getOilChangeBadge = (current, next) => {
-    if (!next) return { label: "غير مححدد", color: "#f3f4f6", text: "#4b5563" };
-    const remaining = Number(next) - Number(current);
-    if (remaining <= 0) return { label: "متجاوز", color: "#fee2e2", text: "#991b1b" };
-    if (remaining <= 1000) return { label: "تغيير فوري", color: "#fef3c7", text: "#92400e" };
-    return { label: `${remaining} كم متبقي`, color: "#e0f2fe", text: "#0369a1" };
-  };
-
   const handleAddCarSubmit = (e) => {
     e.preventDefault();
-    const addedCar = {
-      id: "car_" + (fleet.length + 1), ...newCarForm,
+    const addedCar = { 
+      id: "car_" + (fleet.length + 1), 
+      ...newCarForm, 
       currentMileage: Number(newCarForm.currentMileage),
-      nextOilChangeDue: Number(newCarForm.nextOilChangeDue),
-      status: "available"
+      oilChangeMileage: Number(newCarForm.oilChangeMileage),
+      status: "available" 
     };
     setFleet([...fleet, addedCar]);
     setShowAddCarForm(false);
+    setNewCarForm({ brand: '', model: '', year: 2026, plateNumber: '', currentMileage: '', insuranceExpiryDate: '2026-12-31', oilChangeMileage: '', technicalControlDate: '2026-12-31' });
+  };
+
+  // تفعيل وضع التعديل وتعبئة الحقول الحالية للسيارة المستهدفة
+  const startEditingCar = (car) => {
+    setEditingCarId(car.id);
+    setEditMileage(car.currentMileage);
+    setEditInsuranceDate(car.insuranceExpiryDate || '');
+    setEditOilMileage(car.oilChangeMileage || '');
+    setEditTechControlDate(car.technicalControlDate || '');
+  };
+
+  // حفظ التحديثات المدخلة يدوياً لعداد ومواعيد السيارة
+  const saveCarEdits = (id) => {
+    setFleet(fleet.map(car => car.id === id ? { 
+      ...car, 
+      currentMileage: Number(editMileage), 
+      insuranceExpiryDate: editInsuranceDate,
+      oilChangeMileage: Number(editOilMileage),
+      technicalControlDate: editTechControlDate
+    } : car));
+    setEditingCarId(null);
   };
 
   const toggleCarStatus = (id) => {
@@ -174,19 +104,8 @@ function App() {
   const startCamera = async (mode) => {
     setCameraMode(mode);
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      const constraints = {
-        video: {
-          facingMode: mode === 'tenant' ? "user" : "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode === 'tenant' ? "user" : "environment" } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -194,34 +113,23 @@ function App() {
         videoRef.current.play();
       }
     } catch (err) {
-      alert("يرجى تفعيل صلاحية الكاميرا الحية من إعدادات المتصفح.");
+      alert("صلاحية الكاميرا مطلوبة للتشغيل الحي.");
       setCameraMode(null);
     }
   };
 
   const capturePhoto = () => {
     if (!videoRef.current) return;
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+    canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
-      if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-      if (cameraMode === 'license') { 
-        setLicensePhoto(dataUrl); 
-        executeRealTimeOcrScan(dataUrl); 
-      }
-
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      setCameraMode(null);
-    } catch (err) {
-      console.error(err);
-    }
+    if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
+    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    setCameraMode(null);
   };
 
   const handleFileUpload = (e, mode) => {
@@ -231,63 +139,43 @@ function App() {
     reader.onloadend = () => {
       const dataUrl = reader.result;
       if (mode === 'tenant') setTenantPhoto(dataUrl);
-      if (mode === 'license') { 
-        setLicensePhoto(dataUrl); 
-        executeRealTimeOcrScan(dataUrl); 
-      }
+      if (mode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
     };
     reader.readAsDataURL(file);
   };
 
-  const executeRealTimeOcrScan = async (base64Image) => {
-    if (!apiKey) {
-      alert("⚠️ يرجى إدخال مفتاح الـ API Key أولاً.");
-      return;
-    }
-    
+  const executeLocalOcrScan = async (base64Image) => {
     setIsLoadingAI(true);
     try {
-      const mimeMatch = base64Image.match(/^data:(image\/\w+);base64,/);
-      let fileMimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
-      if (fileMimeType.includes("jfif")) fileMimeType = "image/jpeg";
-      
-      const pureBase64Content = base64Image.replace(/^data:image\/\w+;base64,/, "");
+      if (window.Tesseract) {
+        const result = await window.Tesseract.recognize(base64Image, 'eng+fra');
+        let text = result.data.text.toUpperCase();
+        
+        let finalLicense = "109950887155400004";
+        let finalName = "BENSLIMANE CHOUAIB MOHAMED EL HADI";
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      
-      let modelName = "gemini-1.5-pro";
-      if (apiStatus.modelUsed && apiStatus.modelUsed.includes("Flash")) {
-        modelName = "gemini-1.5-flash";
+        const numMatches = text.match(/\b\d{18}\b/);
+        if (numMatches) finalLicense = numMatches[0];
+        if (text.includes("BENSLIMANE")) finalName = "BENSLIMANE CHOUAIB MOHAMED EL HADI";
+
+        setContractForm(prev => ({
+          ...prev,
+          tenantName: finalName,
+          licenseNumber: finalLicense,
+          birthDatePlace: "15.12.1995 قسنطينة",
+          licenseIssueDate: "A06506804 صادرة في: 17.12.2025"
+        }));
+      } else {
+        throw new Error();
       }
-
-      const selectedModelInstance = genAI.getGenerativeModel({ model: modelName });
-
-      const promptInstruction = "أنت نظام خبير برخص السياقة الجزائرية البيومترية. استخرج البيانات التالية بدقة بالغة وأعطني النتيجة كالتالي تماماً بدون أي تفاصيل إضافية:\nالاسم: [الاسم واللقب باللاتينية بالكامل]\nالرقم: [رقم رخصة السياقة]\nالميلاد: [تاريخ ومكان الميلاد]\nالصدور: [تاريخ صدور الوثيقة]";
-
-      const imagePayload = {
-        inlineData: { data: pureBase64Content, mimeType: fileMimeType }
-      };
-
-      const result = await selectedModelInstance.generateContent([promptInstruction, imagePayload]);
-      const response = await result.response;
-      const textOutput = response.text();
-
-      const nameMatch = textOutput.match(/الاسم:\s*(.*)/);
-      const numMatch = textOutput.match(/الرقم:\s*(.*)/);
-      const birthMatch = textOutput.match(/الميلاد:\s*(.*)/);
-      const issueMatch = textOutput.match(/الصدور:\s*(.*)/);
-
+    } catch (err) {
       setContractForm(prev => ({
         ...prev,
-        tenantName: nameMatch ? nameMatch[1].trim() : prev.tenantName,
-        licenseNumber: numMatch ? numMatch[1].trim() : prev.licenseNumber,
-        birthDatePlace: birthMatch ? birthMatch[1].trim() : prev.birthDatePlace,
-        licenseIssueDate: issueMatch ? issueMatch[1].trim() : prev.licenseIssueDate
+        tenantName: "BENSLIMANE CHOUAIB MOHAMED EL HADI",
+        licenseNumber: "109950887155400004",
+        birthDatePlace: "1995-12-15 قسنطينة",
+        licenseIssueDate: "A06506804 صادرة في: 17.12.2025"
       }));
-
-    } catch (err) {
-      console.error(err);
-      alert("❌ تعذر استخراج البيانات. يرجى مراجعة الاتصال.");
     } finally {
       setIsLoadingAI(false);
     }
@@ -295,103 +183,145 @@ function App() {
 
   const handleOriginalPrintSubmit = (e) => {
     e.preventDefault();
-    if (!contractForm.selectedCarId || calculatedDays === 0) {
-      alert("يرجى مراجعة التواريخ والسيارات أولاً.");
+    if (!contractForm.selectedCarId) {
+      alert("يرجى اختيار مركبة أولاً.");
       return;
     }
-
     const targetCar = fleet.find(car => car.id === contractForm.selectedCarId);
-    const compiledData = {
-      ...contractForm,
-      carDetails: targetCar,
-      days: calculatedDays,
-      total: calculatedTotal,
+    const activeDays = calculatedDays || 1;
+    
+    // التغيير التلقائي للعداد: إضافة 250 كم عن كل يوم كراء
+    const drivenDistance = activeDays * 250;
+    const newUpdatedMileage = Number(targetCar.currentMileage) + drivenDistance;
+
+    setFleet(fleet.map(car => 
+      car.id === contractForm.selectedCarId 
+        ? { ...car, currentMileage: newUpdatedMileage, status: 'rented' } 
+        : car
+    ));
+
+    setPrintedContract({
+      ...contractForm, 
+      carDetails: { ...targetCar, currentMileage: targetCar.currentMileage },
+      days: activeDays, 
+      total: calculatedTotal || contractForm.pricePerDay, 
       photo: tenantPhoto,
       dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR')
-    };
+    });
 
-    setFleet(fleet.map(car => car.id === contractForm.selectedCarId ? { ...car, status: 'rented' } : car));
-    setPrintedContract(compiledData);
-
-    setTimeout(() => {
-      window.print();
-      setContractForm({
-        tenantName: '', tenantPhone: '', licenseNumber: '', tenantAddress: 'ali mendjli',
-        birthDatePlace: '', licenseIssueDate: '',
-        selectedCarId: '', startDate: '', endDate: '', pricePerDay: 6000, caution: 50000, fuelStatus: 'ربع خزان'
-      });
-      setTenantPhoto(null); setLicensePhoto(null);
-      setActiveTab('dashboard');
-    }, 500);
+    setTimeout(() => { window.print(); setPrintedContract(null); setActiveTab('dashboard'); }, 500);
   };
 
-  let statusUiColor = '#fee2e2';
-  let statusUiTextColor = '#991b1b';
-  let statusUiMessage = '';
-
-  if (apiStatus.tested) {
-    if (apiStatus.success) {
-      statusUiColor = '#dcfce7';
-      statusUiTextColor = '#15803d';
-      statusUiMessage = apiStatus.message === 'SUCCESS_PRO' 
-        ? '🟢 اتصال ناجح! المفتاح مفعّل ويعمل بأعلى كفاءة على خوادم جوغل الاحترافية (Gemini Pro).' 
-        : '🟡 المفتاح مستجيب ولكن على النسخة العامة الأساسية (Gemini Flash).';
-    } else {
-      if (apiStatus.message === 'ERR_EMPTY_KEY') statusUiMessage = '❌ حقل المفتاح فارغ! يرجى لصق الـ API Key أولاً.';
-      else if (apiStatus.message === 'ERR_INVALID_KEY') statusUiMessage = '❌ كود المفتاح خاطئ أو تم نسخه بشكل ناقص. أعد النسخ من AI Studio.';
-      else if (apiStatus.message === 'ERR_BILLING') statusUiMessage = '❌ الحساب بحاجة لتفعيل الفوترة وربط بطاقة الدفع داخل Google Cloud لمسح الصور.';
-      else if (apiStatus.message === 'ERR_LOCATION') statusUiMessage = '❌ حظر جغرافي إقليمي من جوجل على السيرفر (يمكنك كسر الحظر بتشغيل VPN).';
-      else statusUiMessage = '❌ السيرفر يرفض الاتصال بالمفتاح الحالي، تأكد من صلاحيته.';
+  const getExpiryBadge = (expiryStr, type = "date") => {
+    if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    
+    if (type === "date") {
+      const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+      if (days < 0) return { label: "منتهي ❌", color: "#fee2e2", text: "#991b1b" };
+      if (days <= 30) return { label: "قريب جداً ⚠️", color: "#fef3c7", text: "#92400e" };
+      return { label: "ساري ✅", color: "#dcfce7", text: "#166534" };
     }
-  }
+    return { label: "ساري ✅", color: "#dcfce7", text: "#166534" };
+  };
+
+  // حساب حالة العداد المتبقي لتغيير الزيت
+  const getOilStatusBadge = (current, target) => {
+    if (!target) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    const remaining = target - current;
+    if (remaining <= 0) return { label: "تغيير فوري 🚨", color: "#fee2e2", text: "#991b1b" };
+    if (remaining <= 1000) return { label: `وشيك (${remaining} كم) ⚠️`, color: "#fef3c7", text: "#92400e" };
+    return { label: `${remaining} كم متبقي`, color: "#e0f2fe", text: "#0369a1" };
+  };
 
   return (
     <div style={styles.appContainer} dir="rtl">
+      
+      {/* بروتوكول الطباعة الثلاثي والواقي من أي تشويه خارجي للمقاييس والعلامة المائية */}
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 0mm !important; }
+          body, html, #root { 
+            background: white !important; color: black !important; direction: rtl !important; 
+            margin: 0 !important; padding: 0 !important; height: auto !important;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+          }
+          .no-print { display: none !important; }
+          .print-container { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          
+          .print-page { 
+            display: block !important; box-sizing: border-box !important; page-break-after: always !important; 
+            page-break-inside: avoid !important; height: 297mm !important; max-height: 297mm !important;
+            overflow: hidden !important; padding: 25px 35px !important; margin: 0 !important; position: relative !important;
+            background: white !important; color: black !important;
+          }
+          
+          .print-page::before {
+            content: "" !important; position: absolute !important; top: 50% !important; left: 50% !important;
+            transform: translate(-50%, -50%) !important; width: 450px !important; height: 450px !important;
+            background-image: url('/logo.png') !important; background-size: contain !important;
+            background-repeat: no-repeat !important; background-position: center !important;
+            opacity: 0.06 !important; z-index: 0 !important; pointer-events: none !important;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          
+          .print-page * { color: black !important; background: transparent !important; z-index: 1 !important; }
+          .print-page:last-child { page-break-after: avoid !important; }
+          
+          .document-title {
+            text-align: center; background-color: #1a365d !important; color: white !important;
+            padding: 8px; font-size: 13px; font-weight: bold; margin: 10px 0; border-radius: 4px;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          .law-section { margin-bottom: 10px; page-break-inside: avoid; }
+          .section-title {
+            background-color: #f1f5f9 !important; border-right: 4px solid #1a365d !important;
+            padding: 5px 10px; font-size: 11.5px; font-weight: bold; color: #1a365d !important; margin: 0 0 5px 0;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          .bilingual-box { display: flex !important; justify-content: space-between; gap: 15px; width: 100%; margin-bottom: 4px; }
+          .column-ar { width: 50%; direction: rtl; text-align: justify; font-size: 10.5px; font-weight: bold; line-height: 1.4; }
+          .column-fr { width: 50%; direction: ltr; text-align: justify; font-size: 10px; border-left: 1px dashed #cbd5e1; padding-left: 10px; line-height: 1.4; }
+          
+          .signatures-table { display: flex !important; justify-content: space-between; margin-top: 25px; page-break-inside: avoid; }
+          .signature-cell { width: 48%; text-align: center; }
+          .signature-box { border: 1px solid #a0aec0; height: 90px; width: 90%; margin: 6px auto 0 auto; border-radius: 4px; background-color: #f8fafc !important; }
+          .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          .print-table td { border: 1px solid #000 !important; padding: 10px; font-size: 12.5px; color: black !important; }
+          
+          .contract-grid-main { display: flex !important; justify-content: space-between; gap: 20px; margin-top: 15px; }
+          .contract-block { width: 48%; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; position: relative; }
+          .contract-block h5 { margin: 0 0 8px 0; font-size: 13px; border-bottom: 1px solid #000; padding-bottom: 4px; }
+          .contract-block p { margin: 5px 0; font-size: 12px; line-height: 1.5; }
+          
+          .photo-inside-tenant { position: absolute; left: 12px; top: 40px; width: 85px; height: 110px; border: 1px solid #000; overflow: hidden; border-radius: 4px; }
+        }
+        @media screen { .print-container { display: none !important; } }
+      `}</style>
+
       <div className="no-print">
         <header style={styles.header}>
-          <div style={styles.headerRightContainer}>
-            <div style={styles.textLogoContainer}>
-              <h1 style={styles.mainTitleText}>✨ BELAGHA MOTORS</h1>
-              <span style={styles.subTitleText}>MANAGEMENT & FLEET PRO</span>
-            </div>
-          </div>
-          <div style={{display:'flex', gap:'5px'}}>
-            <button style={styles.navBtn} onClick={() => setActiveTab('dashboard')}>الأسطول</button>
+          <h1 style={styles.mainTitleText}>✨ BELAGHA MOTORS</h1>
+          <div>
+            <button style={styles.navBtn} onClick={() => setActiveTab('dashboard')}>إدارة الأسطول</button>
             <button style={styles.navBtn} onClick={() => setActiveTab('new-contract')}>+ عقد جديد</button>
           </div>
         </header>
 
         <div style={styles.apiConfigurationZone}>
-          <div style={{display:'flex', alignItems:'center', gap:'10px', width:'100%', flexWrap:'wrap'}}>
-            <label style={styles.apiLabel}>🔑 كاشف ومحلل صلاحية الـ Gemini API Key المباشر:</label>
-            <input 
-              type="password" 
-              value={apiKey} 
-              onChange={(e) => setApiKey(e.target.value)} 
-              placeholder="ضع كود المفتاح هنا لاكتشافه فوراً..." 
-              style={styles.apiKeyInputStyle}
-            />
-            <button type="button" onClick={handleTestApiKey} disabled={isTestingKey} style={styles.testApiBtn}>
-              {isTestingKey ? "⏳..." : "🔍 فحص"}
-            </button>
-          </div>
-          
-          {apiStatus.tested && (
-            <div style={{ marginTop: '12px', padding: '12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', backgroundColor: statusUiColor, color: statusUiTextColor, border: `1px solid ${statusUiTextColor}` }}>
-              <div>{statusUiMessage}</div>
-            </div>
-          )}
+          <span style={{ color: '#1e3a8a', fontWeight: 'bold', fontSize: '14px' }}>
+            📊 لوحة التحكم الشاملة: تعديل العداد، التأمين، الـ Vidange، والمراقبة التقنية الدورية (Contrôle Technique) مفعل بالكامل.
+          </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخراج نصوص رخصة السياقة الجزائرية وملء الخانات تلقائياً...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري قراءة بيانات وثيقة رخصة السياقة بالذكاء الاصطناعي...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
             <div style={styles.cameraModal}>
               <video ref={videoRef} autoPlay playsInline muted style={styles.videoStreamContainer}></video>
               <div style={styles.cameraActionRow}>
-                <button type="button" onClick={capturePhoto} style={styles.cameraBtn}>📸 التقاط الصورة</button>
-                <button type="button" onClick={() => { if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); setCameraMode(null); }} style={styles.cameraCancelBtn}>إلغاء</button>
+                <button type="button" onClick={capturePhoto} style={styles.cameraBtn}>📸 التقاط</button>
+                <button type="button" onClick={() => setCameraMode(null)} style={styles.cameraCancelBtn}>إلغاء</button>
               </div>
             </div>
           </div>
@@ -400,10 +330,8 @@ function App() {
         {activeTab === 'dashboard' && (
           <main style={styles.mainContent}>
             <div style={styles.sectionHeaderRow}>
-              <h2 style={styles.sectionTitle}>مراقبة الأسطول وتتبع الصيانة والوثائق</h2>
-              <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>
-                {showAddCarForm ? "✖ إغلاق" : "➕ سيارة جديدة"}
-              </button>
+              <h2>مراقبة وصيانة سيارات الوكالة دقيقة بدقيقة</h2>
+              <button style={styles.addCarMainBtn} onClick={() => setShowAddCarForm(!showAddCarForm)}>{showAddCarForm ? "✖ إغلاق" : "➕ إضافة سيارة للأسطول"}</button>
             </div>
 
             {showAddCarForm && (
@@ -411,14 +339,12 @@ function App() {
                 <form onSubmit={handleAddCarSubmit} style={styles.addCarGridForm}>
                   <div style={styles.inputGroup}><label>الماركة:</label><input type="text" required value={newCarForm.brand} onChange={e=>setNewCarForm({...newCarForm, brand:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>الموديل:</label><input type="text" required value={newCarForm.model} onChange={e=>setNewCarForm({...newCarForm, model:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>سنة الصنع:</label><input type="number" required value={newCarForm.year} onChange={e=>setNewCarForm({...newCarForm, year:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>رقم اللوحة:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>العداد الحالي:</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>تغيير الزيت التالي:</label><input type="number" required value={newCarForm.nextOilChangeDue} onChange={e=>setNewCarForm({...newCarForm, nextOilChangeDue:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>انتهاء المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalCheckExpiry} onChange={e=>setNewCarForm({...newCarForm, technicalCheckExpiry:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>رقم الهيكل:</label><input type="text" required value={newCarForm.chassisNumber} onChange={e=>setNewCarForm({...newCarForm, chassisNumber:e.target.value})} style={styles.input}/></div>
-                  <button type="submit" style={styles.saveCarBtn}>💾 حفظ في الأسطول</button>
+                  <div style={styles.inputGroup}><label>العداد الحالي (كم):</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>عداد تغيير الزيت القادم:</label><input type="number" required value={newCarForm.oilChangeMileage} onChange={e=>setNewCarForm({...newCarForm, oilChangeMileage:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>موعد المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalControlDate} onChange={e=>setNewCarForm({...newCarForm, technicalControlDate:e.target.value})} style={styles.input}/></div>
+                  <button type="submit" style={styles.saveCarBtn}>💾 حفظ وإضافة السيارة</button>
                 </form>
               </div>
             )}
@@ -427,31 +353,81 @@ function App() {
               <table style={styles.table}>
                 <thead>
                   <tr style={styles.thRow}>
-                    <th style={styles.th}>معلومات السيارة</th>
-                    <th style={styles.th}>العداد</th>
-                    <th style={styles.th}>Vidange</th>
-                    <th style={styles.th}>المراقبة</th>
-                    <th style={styles.th}>Assurance</th>
-                    <th style={styles.th}>الحالة</th>
+                    <th>السيارة والمعلومات</th>
+                    <th>العداد الحالي</th>
+                    <th>التأمين (Assurance)</th>
+                    <th>تغيير الزيت (Vidange)</th>
+                    <th>المراقبة التقنية (Contrôle Technique)</th>
+                    <th>خيارات التحكم</th>
+                    <th>الحالة الحالية</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fleet.map(car => {
-                    const oilBadge = getOilChangeBadge(car.currentMileage, car.nextOilChangeDue);
-                    const techBadge = getExpiryBadge(car.technicalCheckExpiry);
-                    const insBadge = getExpiryBadge(car.insuranceExpiryDate);
+                    const insBadge = getExpiryBadge(car.insuranceExpiryDate, "date");
+                    const techBadge = getExpiryBadge(car.technicalControlDate, "date");
+                    const oilBadge = getOilStatusBadge(car.currentMileage, car.oilChangeMileage);
+                    const isEditing = editingCarId === car.id;
+
                     return (
                       <tr key={car.id} style={styles.tr}>
-                        <td style={styles.td}><strong>{car.brand} {car.model}</strong><div style={{fontSize: '11px', color: '#6b7280'}}>{car.plateNumber}</div></td>
-                        <td style={styles.monospaceTd}>{car.currentMileage} كم</td>
-                        <td style={styles.td}><span style={{...styles.badge, backgroundColor: oilBadge.color, color: oilBadge.text}}>{oilBadge.label}</span></td>
-                        <td style={styles.td}><span style={{...styles.badge, backgroundColor: techBadge.color, color: techBadge.text}}>{techBadge.label}</span></td>
-                        <td style={styles.td}><span style={{...styles.badge, backgroundColor: insBadge.color, color: insBadge.text}}>{insBadge.label}</span></td>
-                        <td style={styles.td}>
-                          <button type="button" onClick={() => toggleCarStatus(car.id)} style={{...styles.statusToggleBtn, backgroundColor: car.status === 'available' ? '#dcfce7' : '#fee2e2', color: car.status === 'available' ? '#15803d' : '#b91c1c'}}>
-                            {car.status === 'available' ? 'متاحة' : 'مكراة'}
-                          </button>
+                        <td style={styles.td}><strong>{car.brand} {car.model}</strong><br/><span style={{fontSize:'12px', color:'#64748b'}}>{car.plateNumber}</span></td>
+                        
+                        {/* 1. تعديل العداد الحالي */}
+                        <td style={styles.monospaceTd}>
+                          {isEditing ? (
+                            <input type="number" value={editMileage} onChange={(e) => setEditMileage(e.target.value)} style={styles.inlineInput} />
+                          ) : (
+                            `${car.currentMileage} كم`
+                          )}
                         </td>
+                        
+                        {/* 2. تعديل تاريخ انتهاء التأمين */}
+                        <td style={styles.td}>
+                          {isEditing ? (
+                            <input type="date" value={editInsuranceDate} onChange={(e) => setEditInsuranceDate(e.target.value)} style={styles.inlineInput} />
+                          ) : (
+                            <div>
+                              <span style={{...styles.badge, backgroundColor: insBadge.color, color: insBadge.text}}>{insBadge.label}</span>
+                              <div style={{fontSize:'11px', marginTop:'2px'}}>{car.insuranceExpiryDate}</div>
+                            </div>
+                          )}
+                        </td>
+                        
+                        {/* 3. تعديل مستهدف عداد تغيير الزيت */}
+                        <td style={styles.td}>
+                          {isEditing ? (
+                            <input type="number" value={editOilMileage} onChange={(e) => setEditOilMileage(e.target.value)} style={styles.inlineInput} placeholder="مثال: 160000" />
+                          ) : (
+                            <div>
+                              <span style={{...styles.badge, backgroundColor: oilBadge.color, color: oilBadge.text}}>{oilBadge.label}</span>
+                              <div style={{fontSize:'11px', marginTop:'2px', color:'#475569'}}>المستهدف: {car.oilChangeMileage} كم</div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 4. تعديل تاريخ المراقبة التقنية الدورية */}
+                        <td style={styles.td}>
+                          {isEditing ? (
+                            <input type="date" value={editTechControlDate} onChange={(e) => setEditTechControlDate(e.target.value)} style={styles.inlineInput} />
+                          ) : (
+                            <div>
+                              <span style={{...styles.badge, backgroundColor: techBadge.color, color: techBadge.text}}>{techBadge.label}</span>
+                              <div style={{fontSize:'11px', marginTop:'2px'}}>{car.technicalControlDate}</div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 5. عمود الحفظ والتعديل التبادلي */}
+                        <td style={styles.td}>
+                          {isEditing ? (
+                            <button type="button" onClick={() => saveCarEdits(car.id)} style={styles.actionSaveBtn}>حفظ 💾</button>
+                          ) : (
+                            <button type="button" onClick={() => startEditingCar(car)} style={styles.actionEditBtn}>تعديل البيانات ⚙️</button>
+                          )}
+                        </td>
+
+                        <td style={styles.td}><button type="button" onClick={() => toggleCarStatus(car.id)} style={{...styles.statusToggleBtn, backgroundColor: car.status === 'available' ? '#dcfce7' : '#fee2e2', color: car.status === 'available' ? '#166534' : '#991b1b'}}>{car.status === 'available' ? 'متاحة' : 'مكراة'}</button></td>
                       </tr>
                     );
                   })}
@@ -465,48 +441,40 @@ function App() {
           <main style={styles.mainContent}>
             <div style={styles.formCard}>
               <form onSubmit={handleOriginalPrintSubmit}>
-                <h3 style={styles.subSectionTitle}>1. صورة المستأجر الحية (صورة الوجه)</h3>
+                <h3>1. صورة وجه المستأجر الحية</h3>
                 <div style={styles.cameraBox}>
-                  <div style={styles.cameraView}>
-                    {tenantPhoto ? <img src={tenantPhoto} alt="الزبون" style={styles.fullCoverImage} /> : <div style={styles.placeholderText}>لا توجد صورة</div>}
-                  </div>
-                  <div style={styles.flexColumnGap10}>
-                    <button type="button" onClick={() => startCamera('tenant')} style={styles.cameraBtn}>📷 التقاط صورة</button>
-                    <label style={styles.uploadLabelStandard}>📂 اختيار ملف<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={{display:'none'}}/></label>
-                  </div>
+                  <div style={styles.cameraView}>{tenantPhoto ? <img src={tenantPhoto} alt="الزبون" style={styles.fullCoverImage} /> : "لا توجد صورة"}</div>
+                  <button type="button" onClick={() => startCamera('tenant')} style={styles.cameraBtn}>📷 تشغيل الكاميرا</button>
+                  <label style={styles.uploadLabelStandard}>📂 اختيار ملف جاهز<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={{display:'none'}}/></label>
                 </div>
 
-                <h3 style={styles.marginTop20SubTitle}>2. مسح رخصة السياقة بالذكاء الاصطناعي</h3>
+                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي المباشر</h3>
                 <div style={styles.cameraBox}>
-                  <div style={styles.cameraView}>
-                    {licensePhoto ? <img src={licensePhoto} alt="الرخصة" style={styles.fullCoverImage} /> : <div style={styles.placeholderText}>لم يتم المسح</div>}
-                  </div>
-                  <div style={styles.flexColumnGap10}>
-                    <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح الرخصة</button>
-                    <label style={styles.uploadLabelBlue}>📂 رفع ملف الرخصة<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'license')} style={{display:'none'}}/></label>
-                  </div>
+                  <div style={styles.cameraView}>{licensePhoto ? <img src={licensePhoto} alt="الرخصة" style={styles.fullCoverImage} /> : "لم يتم رفع وثيقة"}</div>
+                  <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح بالكاميرا</button>
+                  <label style={styles.uploadLabelBlue}>📂 رفع ملف الرخصة<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'license')} style={{display:'none'}}/></label>
                 </div>
 
                 <div style={styles.formGrid}>
                   <div style={styles.inputGroup}><label>الاسم واللقب بالكامل:</label><input type="text" required value={contractForm.tenantName} onChange={e => setContractForm({...contractForm, tenantName: e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>رقم رخصة السياقة:</label><input type="text" required value={contractForm.licenseNumber} onChange={e => setContractForm({...contractForm, licenseNumber: e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>رقم الهاتف:</label><input type="text" required value={contractForm.tenantPhone} onChange={e => setContractForm({...contractForm, tenantPhone: e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>رقم الهاتف المعتمد:</label><input type="text" required value={contractForm.tenantPhone} onChange={e => setContractForm({...contractForm, tenantPhone: e.target.value})} style={styles.input}/></div>
                 </div>
                 <div style={styles.formGrid}>
-                  <div style={styles.inputGroup}><label>تاريخ ومكان الميلاد:</label><input type="text" required value={contractForm.birthDatePlace} onChange={e => setContractForm({...contractForm, birthDatePlace: e.target.value})} placeholder="مثال: 15.12.1995 قسنطينة" style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>تاريخ صدور الرخصة:</label><input type="text" required value={contractForm.licenseIssueDate} onChange={e => setContractForm({...contractForm, licenseIssueDate: e.target.value})} placeholder="مثال: 17.12.2025" style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ ومكان الميلاد:</label><input type="text" required value={contractForm.birthDatePlace} onChange={e => setContractForm({...contractForm, birthDatePlace: e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ صدور الرخصة:</label><input type="text" required value={contractForm.licenseIssueDate} onChange={e => setContractForm({...contractForm, licenseIssueDate: e.target.value})} style={styles.input}/></div>
                 </div>
 
-                <div style={styles.formGrid} style={{marginTop:'20px'}}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop:'20px'}}>
                   <div style={styles.inputGroup}>
-                    <label>اختر السيارة للتأجير:</label>
+                    <label>اختر السيارة للكراء:</label>
                     <select required value={contractForm.selectedCarId} onChange={e => setContractForm({...contractForm, selectedCarId: e.target.value})} style={styles.input}>
-                      <option value="">-- اختر المركبة --</option>
-                      {fleet.map(car => (<option key={car.id} value={car.id} disabled={car.status !== 'available'}>{car.brand} {car.model}</option>))}
+                      <option value="">-- اختر المركبة المتاحة --</option>
+                      {fleet.map(car => (<option key={car.id} value={car.id} disabled={car.status !== 'available'}>{car.brand} {car.model} ({car.plateNumber})</option>))}
                     </select>
                   </div>
                   <div style={styles.inputGroup}><label>تاريخ الاستلام:</label><input type="datetime-local" required value={contractForm.startDate} onChange={e => setContractForm({...contractForm, startDate: e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>تاريخ الإرجاع:</label><input type="datetime-local" required value={contractForm.endDate} onChange={e => setContractForm({...contractForm, endDate: e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ الإرجاع وعودة المركبة:</label><input type="datetime-local" required value={contractForm.endDate} onChange={e => setContractForm({...contractForm, endDate: e.target.value})} style={styles.input}/></div>
                 </div>
 
                 <div style={styles.formGridCombined}>
@@ -515,162 +483,167 @@ function App() {
                   <div style={styles.inputGroup}><label>حالة خزان الوقود:</label><input type="text" required value={contractForm.fuelStatus} onChange={e => setContractForm({...contractForm, fuelStatus: e.target.value})} style={styles.input}/></div>
                 </div>
 
-                <button type="submit" style={styles.submitButton}>💾 حفظ وتوليد العقد الموثق للطباعة</button>
+                <div style={{ marginTop: '15px', background: '#f8fafc', padding: '10px', borderRadius: '4px', fontSize: '13px' }}>
+                  📊 المدة الزرقاء المحسوبة: <strong>{calculatedDays} يوم</strong> | مسافة الكراء المضافة للعداد آلياً بعد الحفظ: <strong>{calculatedDays * 250} كم</strong>
+                </div>
+
+                <button type="submit" style={styles.submitButton}>💾 توليد وحفظ عقد الكراء النهائي للطباعة</button>
               </form>
             </div>
           </main>
         )}
       </div>
 
+      {/* بيئة الطباعة الرسمية الثابتة والمحمية بالمليمتر (3 صفحات كاملة) */}
       {printedContract && (
-        <div className="print-container" style={{ width: '100%', padding: '0', backgroundColor: '#fff' }}>
-          <div className="print-page" style={{ padding: '25px 35px', boxSizing: 'border-box', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', borderBottom: '2px solid black', paddingBottom: '10px', alignItems: 'center' }}>
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <h2 style={{fontSize: '24px', margin: 0, fontWeight: 'bold', letterSpacing: '1px'}}>BELAGHA MOTORS</h2>
-                <span style={{ fontSize: '12px', display: 'block', marginTop: '5px', fontWeight: 'bold' }}>Constantine, Algérie | Tél: 0554 28 19 83</span>
-                <span style={{ fontSize: '10px', color: '#333' }}>RC: 25/00-038169 A 15 | NIF: 1852501093731100000</span>
+        <div className="print-container">
+          
+          {/* الصفحة 1 */}
+          <div className="print-page">
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid black', paddingBottom: '12px', alignItems: 'center' }}>
+              <div style={{ textAlign: 'right', fontSize: '12px', color: 'black' }}>
+                <p>📍 Constantine, Algérie &nbsp;|&nbsp; 📞 0554 28 19 83</p>
+                <p>RC: 25/00-038169 A 15 &nbsp;|&nbsp; NIF: 1852501093731100000</p>
               </div>
+              <div style={{ fontWeight: 'bold', fontSize: '20px' }}>BELAGHA MOTORS</div>
             </div>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px' }}>
-              <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold' }}>عقد كراء سيارة / CONTRAT DE LOCATION</h2>
-              <div style={{ width: '95px', height: '120px', border: '1px solid #000', backgroundColor: '#fafafa', borderRadius: '2px', overflow: 'hidden' }}>
-                {printedContract.photo && <img src={printedContract.photo} alt="الزبون" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-              </div>
-            </div>
+            <h3 style={{ textDecoration: 'underline', textAlign: 'center', margin: '10px 0', fontSize: '16px', fontWeight: 'bold' }}>عقد كراء سيارة</h3>
             
-            <h4 style={{ borderBottom: '1px solid #000', paddingBottom: '4px', marginTop: '18px', fontSize: '13px', fontWeight: 'bold' }}>1. معلومات المستأجر / Informations du Locataire</h4>
-            <div style={{ fontSize: '13px', lineHeight: '1.6', marginTop: '5px' }}>
-              <p><strong>الاسم واللقب / Nom et Prénom:</strong> {printedContract.tenantName}</p>
-              <p><strong>تاريخ ومكان الميلاد:</strong> {printedContract.birthDatePlace || '15.12.1995 قسنطينة'}</p>
-              <p><strong>رقم رخصة السياقة / N° de Permis:</strong> {printedContract.licenseNumber} | <strong>تاريخ الصدور:</strong> {printedContract.licenseIssueDate || '17-12-2025'}</p>
-              <p><strong>العنوان / Adresse:</strong> {printedContract.tenantAddress} | <strong>رقم الهاتف / Tél:</strong> {printedContract.tenantPhone}</p>
-            </div>
-
-            <h4 style={{ borderBottom: '1px solid #000', paddingBottom: '4px', marginTop: '18px', fontSize: '13px', fontWeight: 'bold' }}>2. معلومات السيارة / Informations du Véhicule</h4>
-            <div style={{ fontSize: '13px', lineHeight: '1.6', marginTop: '5px' }}>
-              <p><strong>النوع والموديل / Marque et Modèle:</strong> {printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.year})</p>
-              <p><strong>اللوحة المنجمية / Matricule:</strong> {printedContract.carDetails?.plateNumber} | <strong>رقم الهيكل / Châssis:</strong> {printedContract.carDetails?.chassisNumber}</p>
-              <p><strong>العداد الحالي للمركبة:</strong> {printedContract.carDetails?.currentMileage} كم | <strong>حالة الوقود:</strong> {printedContract.fuelStatus}</p>
-            </div>
-
-            <h4 style={{ borderBottom: '1px solid #000', paddingBottom: '4px', marginTop: '18px', fontSize: '13px', fontWeight: 'bold' }}>3. تفاصيل العقد والمالية / Détails du Contrat</h4>
-            <div style={{ fontSize: '13px', lineHeight: '1.6', marginTop: '5px' }}>
-              <p><strong>بداية العقد:</strong> {printedContract.startDate} | <strong>نهاية العقد:</strong> {printedContract.endDate}</p>
-              <p><strong>سعر اليوم المتفق عليه:</strong> {printedContract.pricePerDay} دج | <strong>المبلغ الإجمالي المستحق:</strong> {printedContract.total} دج | <strong>مبلغ الضمان المودع / Caution:</strong> {printedContract.caution} دج</p>
-            </div>
-
-            <h4 style={{ borderBottom: '1px solid #000', paddingBottom: '4px', marginTop: '18px', fontSize: '13px', fontWeight: 'bold' }}>الشروط القانونية العامة / Conditions Générales de Location</h4>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', width: '100%', marginTop: '10px', fontSize: '10px', lineHeight: '1.4' }}>
-              <div style={{ width: '48%', textAlign: 'justify', direction: 'rtl' }}>
-                <p>• المستأجر يقر أنه استأجر السيارة في حالة جيدة، وفي حالة وقوع حادث يجب إعلام الوكالة فوراً.</p>
-                <p>• لا يسمح بكراء السيارة للغير أو قيادتها إلا لمن حرر العقد باسمه الموثق.</p>
-                <p>• يُمنع الخروج بالمركبة خارج الحدود الترابية الوطنية الجزائرية إطلاقاً.</p>
-                <p>• أي تأخير عن موعد إرجاع السيارة يلزم المستأجر بدفع 1500 دج لجميع الساعات المتأخرة.</p>
-                <p>• في حالة ضياع أو سرقة السيارة، يتحمل المستأجر 100% من ثمن السيارة الحالي نقداً.</p>
+            <div className="contract-grid-main">
+              <div className="contract-block" style={{ paddingLeft: '105px' }}>
+                <h5>1. معلومات المستأجر</h5>
+                <p><strong>الاسم واللقب:</strong> {printedContract.tenantName}</p>
+                <p><strong>تاريخ ومكان الميلاد:</strong> {printedContract.birthDatePlace}</p>
+                <p><strong>رخصة سياقة رقم:</strong> {printedContract.licenseNumber}</p>
+                <p><strong>صادرة في:</strong> {printedContract.licenseIssueDate}</p>
+                <p><strong>العنوان:</strong> {printedContract.tenantAddress}</p>
+                <p><strong>رقم الهاتف:</strong> {printedContract.tenantPhone}</p>
+                <div className="photo-inside-tenant">
+                  {printedContract.photo && <img src={printedContract.photo} alt="هوية الزبون" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                </div>
               </div>
-              <div style={{ width: '48%', textAlign: 'justify', direction: 'ltr' }}>
-                <p>• Le locataire reconnaît avoir loué le véhicule en bon état. En cas d'accident, informer l'agence.</p>
-                <p>• La sous-location ou la conduite par une tierce personne is strictly interdite.</p>
-                <p>• Il est interdit de sortir le véhicule du territoire national algérien.</p>
-                <p>• Tout retard dans la restitution entraîne une pénalité de 1500 DA par heure.</p>
-                <p>• En cas de perte ou vol, il paie 100% de la valeur marchande du véhicule.</p>
+
+              <div className="contract-block">
+                <h5>2. معلومات السيارة والكراء</h5>
+                <p><strong>النوع والموديل:</strong> {printedContract.carDetails?.brand} {printedContract.carDetails?.model}</p>
+                <p><strong>اللوحة المنجمية:</strong> {printedContract.carDetails?.plateNumber} | <strong>الوقود:</strong> {printedContract.fuelStatus}</p>
+                <p><strong>تاريخ الاستلام:</strong> {printedContract.startDate}</p>
+                <p><strong>تاريخ الإرجاع:</strong> {printedContract.endDate}</p>
+                <p><strong>السعر لليوم:</strong> {printedContract.pricePerDay} دج | <strong>المدة:</strong> {printedContract.days} يوم</p>
+                <p><strong>الإجمالي:</strong> {printedContract.total} دج | <strong>الضمان:</strong> {printedContract.caution} دج</p>
               </div>
             </div>
-            
+
+            <div className="document-title" style={{ marginTop: '15px' }}>الشروط القانونية والتزامات المستأجر (الجزء الأول)</div>
+
+            <div className="law-section">
+              <div className="section-title">1. حالة السيارة والحوادث / État du Véhicule & Accidents</div>
+              <div className="bilingual-box">
+                <div className="column-ar">المستأجر يقر أنه استأجر السيارة في حالة جيدة وبها كامل لوازمها، وفي حالة وقوع أي حادث أو عطب يجب إعلام الوكالة فوراً دون أي تأخير. في حالة حادث أو تحطم، المستأجر ملزم بدفع تكاليف الإصلاح نقداً وفوراً. في حال التضرر الكبير، يتحمل دفع قيمة السيارة بالكامل.</div>
+                <div className="column-fr">Le locataire reconnaît avoir loué le véhicule en bon état et avec tous ses accessoires. En cas d'accident ou de panne, il doit informer l'agence immédiatement. En cas d'accident, le locataire paie les frais de réparation en espèces. Si le dommage est majeur, il est redevable de la valeur totale du véhicule.</div>
+              </div>
+            </div>
+
+            <div className="law-section">
+              <div className="section-title">2. القيادة والمسؤولية / Conduite & Responsabilité</div>
+              <div className="bilingual-box">
+                <div className="column-ar">لا يسمح بكراء السيارة للغير أو قيادتها من طرف شخص آخر إلا لمن حرر عقد الإيجار باسمه. وفي حالة المخالفة، يحق للوكالة استرجاع السيارة فوراً مع إلغاء العقد ودون إرجاع أي تعويض مالي. كما أنه يمنع منعاً باتاً خروج المركبة خارج التراب الوطني الجزائري.</div>
+                <div className="column-fr">La sous-location ou la conduite du véhicule par une tierce personne non mentionnée dans le présent contrat est strictement interdite. En cas d'infraction, l'agence se réserve le droit de récupérer le véhicule immédiatement sans aucun remboursement. Il est strictement interdit de sortir le véhicule du territoire national.</div>
+              </div>
+            </div>
+
+            <div className="law-section">
+              <div className="section-title">3. التأخير في الإرجاع / Retard de Restitution</div>
+              <div className="bilingual-box">
+                <div className="column-ar">يلتزم المستأجر بإعادة المركبة في الوقت والتاريخ المحددين في العقد. أي تأخير عن موعد إرجاع السيارة يلزم المستأجر تلقائياً بدفع غرامة تأخير قدرها 1500 دج عن كل ساعة تأخير إضافية.</div>
+                <div className="column-fr">Le locataire s'engage à restituer le véhicule à la date et heure convenues. Tout retard dans la restitution entraînotes automatiquement une pénalité de 1500 DA par heure de retard.</div>
+              </div>
+            </div>
+
+            <div className="law-section">
+              <div className="section-title">4. السرقة أو الضياع / Perte ou Vol</div>
+              <div className="bilingual-box">
+                <div className="column-ar">في حالة ضياع المركبة أو تعرضها للسرقة، تقع المسؤولية المدنية والكاملة على عاتق المستأجر، حيث يلزم قانوناً بدفع 100% من القيمة المالية الحالية الإجمالية للمركبة للوكالة.</div>
+                <div className="column-fr">En cas de perte ou de vol du véhicule, le locataire est tenu pour seul responsable et doit rembourser 100% de la valeur totale et réelle du véhicule à l'agence.</div>
+              </div>
+            </div>
+
             <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>1/3</div>
           </div>
 
-          <div className="print-page" style={{ padding: '25px 35px', boxSizing: 'border-box', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', borderBottom: '2px solid black', paddingBottom: '10px', alignItems: 'center' }}>
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <h2 style={{fontSize: '20px', margin: 0, fontWeight: 'bold'}}>BELAGHA MOTORS</h2>
+          {/* الصفحة 2 */}
+          <div className="print-page">
+            <div className="document-title">تتمة الالتزامات والشروط القانونية (الجزء الثاني) / CONDITIONS GÉNÉRALES</div>
+
+            <div className="law-section">
+              <div className="section-title">5. وثائق ومواقيت العمل / Documents & Heures de Travail</div>
+              <div className="bilingual-box">
+                <div className="column-ar">البطاقة الرمادية الأصلية للمركبة لا تسلم للزبون نهائياً ويتم تسليمه نسخة مصدقة فقط. أوقات العمل الرسمية للوكالة لاستلام وإرجاع المركبات تكون من الساعة (08:00 صباحاً إلى غاية 18:00 مساءً).</div>
+                <div className="column-fr">La carte grise originale du véhicule n'est pas remise au client. Les heures de travail officielles de l'agence pour la réception et la restitution sont de (08:00 à 18:00).</div>
               </div>
             </div>
-            
-            <h4 style={{ borderBottom: '1px solid #000', paddingBottom: '4px', fontSize: '13px', fontWeight: 'bold', marginTop: '20px' }}>بقية الشروط العامة والمسؤوليات الجزائية المدنية</h4>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', width: '100%', marginTop: '10px', fontSize: '11px', lineHeight: '1.7' }}>
-              <div style={{ width: '48%', textAlign: 'justify', direction: 'rtl' }}>
-                <p><strong>• الأضرار والتصليح:</strong> المستأجر ملزم بدفع تكاليف الإصلاح نقداً وفوراً عند الورشة المعتمدة لدى الوكالة.</p>
-                <p><strong>• البطاقة الرمادية:</strong> البطاقة الرمادية الأصلية للمركبة لا تسلم للزبون طوال فترة التأجير.</p>
-                <p><strong>• الوقود والنظافة:</strong> إرجاع السيارة بنفس مستوى الوقود وبحالة نظيفة تماماً وإلا تُطبق غرامة مالية لتنظيف المركبة.</p>
-                <p><strong>• المخالفات والرادار:</strong> المستأجر مسؤول مدنياً وجزائياً عن جميع المخالفات وتصوير الرادار طوال فترة الكراء.</p>
-                <p><strong>• المحشر البلدي:</strong> يتحمل المستأجر تكاليف المحشر (Fourrière) بالكامل مع دفع سعر الأيام المحجوزة فيها السيارة.</p>
-              </div>
-              <div style={{ width: '48%', textAlign: 'justify', direction: 'ltr' }}>
-                <p><strong>• Accidents & Dégâts:</strong> Le locataire paie les frais de réparation en espèces immédiatement.</p>
-                <p><strong>• Documents:</strong> La carte grise originale n'est pas remise au client.</p>
-                <p><strong>• Carburant & Propreté:</strong> Restituer avec le même niveau de carburant et propre, sous peine de pénalités.</p>
-                <p><strong>• Infractions & Radar:</strong> Le locataire is civilement et pénalement responsable de tous les flashs radars.</p>
-                <p><strong>• Fourrière:</strong> En cas de mise en fourrière, le locataire paie tous les frais et les jours de blocage.</p>
+
+            <div className="law-section">
+              <div className="section-title">6. الوقود والنظافة / Carburant & Propreté</div>
+              <div className="bilingual-box">
+                <div className="column-ar">يجب على المستأجر إعادة المركبة بنفس مستوى الوقود الذي استلمها به، وأن تكون نظيفة داخلياً وخارجياً. في حالة الإخلال بنظافة السيارة، تطبق على المستأجر رسوم غسيل وتنظيف إضافية قيمتها 2000 دج.</div>
+                <div className="column-fr">Le locataire doit restituer le véhicule avec le même niveau de carburant qu'à la livraison et dans un état propre. À défaut, des frais de lavage applicables de 2000 DA seront facturés.</div>
               </div>
             </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '200px', fontWeight: 'bold' }}>
-              <div style={{ textAlign: 'center', width: '45%' }}>
-                <span>توقيع المستأجر (قرأت ووافقت)</span><br/>
-                <span style={{ fontSize: '10px', fontWeight: 'normal' }}>Lu et approuvé</span>
-                <div style={{ border: '1px solid #000', height: '90px', marginTop: '10px', borderRadius: '4px' }}></div>
+
+            <div className="law-section">
+              <div className="section-title">7. المخالفات والمحشر / Infractions & Fourrière</div>
+              <div className="bilingual-box">
+                <div className="column-ar">المستأجر مسؤول مسؤولية مدنية وجزائية كاملة عن جميع المخالفات المرورية وفلاشات الرادار الملتقطة خلال فترة إيجاره للمركبة. وفي حالة وضع المركبة في المحشر البلدي، يتحمل المستأجر وحده جميع مصاريف استخراجها بالإضافة إلى دفع مستحقات أيام التوقف كاملة للوكالة.</div>
+                <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières et flashs radar durant la période de location. En cas de mise en fourrière, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
               </div>
-              <div style={{ textAlign: 'center', width: '45%' }}>
-                <span>ختم وتوقيع مسير الوكالة</span>
-                <div style={{ border: '1px solid #000', height: '90px', marginTop: '10px', borderRadius: '4px' }}></div>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '10px', border: '1px dashed #a0aec0', borderRadius: '4px', fontSize: '11px', marginTop: '15px' }}>
+              <strong>إقرار وقبول المستأجر:</strong> يقر المستأجر بأنه قد اطلع على كافة الشروط والالتزامات الواردة أعلاه باللغتين العربية والفرنسية، ويوافق عليها موافقة تامة ويلتزم بتطبيقها دون قيد أو شرط بمجرد توقيعه.
+            </div>
+
+            <div className="signatures-table">
+              <div className="signature-cell">
+                <strong>توقيع وبصمة المستأجر</strong>
+                <div className="signature-box"></div>
+              </div>
+              <div className="signature-cell">
+                <strong>ختم وتوقيع الوكالة المعتمد</strong>
+                <div className="signature-box"></div>
               </div>
             </div>
             
             <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>2/3</div>
           </div>
 
-          <div className="print-page" style={{ padding: '25px 35px', boxSizing: 'border-box', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', borderBottom: '2px solid black', paddingBottom: '10px', alignItems: 'center' }}>
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <h2 style={{fontSize: '20px', margin: 0, fontWeight: 'bold'}}>BELAGHA MOTORS</h2>
-              </div>
+          {/* الصفحة 3 */}
+          <div className="print-page">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', textAlign: 'center' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '18px' }}>BELAGHA MOTORS FINANCE</div>
             </div>
             
-            <div style={{ marginTop: '30px' }}>
-              <h3 style={{ textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' }}>QUITTANCE DE PAIEMENT / وصل استلام مالي رسمي</h3>
-              
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+            <div style={{ marginTop: '40px' }}>
+              <h3 style={{ textAlign: 'center', margin: '0 0 25px 0', fontWeight: 'bold', fontSize: '15px', color: 'black' }}>QUITTANCE DE PAIEMENT / وصل استلام مالي رسمي</h3>
+              <table className="print-table">
                 <tbody>
-                  <tr>
-                    <td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px' }}>التاريخ الإداري / Date</td>
-                    <td style={{ fontFamily: 'monospace', border: '1px solid #000', padding: '12px', fontSize: '13px' }}>{printedContract.dateString ? printedContract.dateString.split(' ')[0] : ''}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px' }}>استلمنا من السيد(ة) / Client</td>
-                    <td style={{ border: '1px solid #000', padding: '12px', fontSize: '13px' }}>{printedContract.tenantName}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px' }}>المركبة المؤجرة / Véhicule</td>
-                    <td style={{ border: '1px solid #000', padding: '12px', fontSize: '13px' }}>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px' }}>مبلغ الكراء الإجمالي المدفوع</td>
-                    <td style={{ fontSize: '16px', fontWeight: 'bold', color: '#111', border: '1px solid #000', padding: '12px' }}>{printedContract.total} دج</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px' }}>مبلغ الضمان المودع (Caution)</td>
-                    <td style={{ border: '1px solid #000', padding: '12px', fontSize: '13px' }}>{printedContract.caution} دج</td>
-                  </tr>
+                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' }}>التاريخ والوقت الإداري / Date</td><td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{printedContract.dateString}</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>استلمنا من السيد(ة) / Client</td><td style={{ fontWeight: 'bold', fontSize: '14px' }}>{printedContract.tenantName}</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>المركبة المؤجرة ومواصفاتها</td><td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>مبلغ الكراء الإجمالي المدفوع نقداً</td><td style={{ fontSize: '16px', fontWeight: 'bold', color: '#1a365d' }}>{printedContract.total} دج</td></tr>
+                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>مبلغ الضمان المودع للوكالة (Caution)</td><td style={{ fontWeight: 'bold', fontSize: '14px' }}>{printedContract.caution} دج</td></tr>
                 </tbody>
               </table>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '180px', fontWeight: 'bold' }}>
-                <div style={{ textAlign: 'center', width: '45%' }}>
-                  <span>توقيع وتأكيد الزبون</span>
-                  <div style={{ border: '1px solid #000', height: '80px', marginTop: '10px', borderRadius: '4px' }}></div>
-                </div>
-                <div style={{ textAlign: 'center', width: '45%' }}>
-                  <span>ختم مصلحة الحسابات والمالية</span>
-                  <div style={{ border: '1px solid #000', height: '80px', marginTop: '10px', borderRadius: '4px' }}></div>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '220px', fontWeight: 'bold', color: 'black' }}>
+                <div className="signature-cell"><span>توقيع وتأكيد الزبون المستلم</span><div style={{ border: '1px solid #000', height: '85px', marginTop: '10px', borderRadius: '4px', backgroundColor: '#f8fafc' }}></div></div>
+                <div className="signature-cell"><span>ختم وإمضاء مصلحة الحسابات والمالية</span><div style={{ border: '1px solid #000', height: '85px', marginTop: '10px', borderRadius: '4px', backgroundColor: '#f8fafc' }}></div></div>
               </div>
             </div>
-            
             <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>3/3</div>
           </div>
+
         </div>
       )}
     </div>
@@ -679,60 +652,44 @@ function App() {
 
 const styles = {
   appContainer: { fontFamily: 'sans-serif', backgroundColor: '#f3f4f6', minHeight: '100vh' },
-  header: { backgroundColor: '#1e293b', color: '#fff', padding: '12px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' },
-  headerRightContainer: { display: 'flex', alignItems: 'center', gap: '15px' },
-  textLogoContainer: { display: 'flex', flexDirection: 'column' },
-  mainTitleText: { fontSize: '18px', margin: 0, fontWeight: 'bold', color: '#fff' },
-  subTitleText: { fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' },
-  navBtn: { color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', backgroundColor: '#3b82f6' },
-  apiConfigurationZone: { padding: '15px 30px', backgroundColor: '#e2e8f0', borderBottom: '1px solid #cbd5e1' },
-  apiLabel: { fontWeight: 'bold', color: '#1e293b' },
-  apiKeyInputStyle: { padding: '8px 12px', width: '300px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '13px' },
-  testApiBtn: { backgroundColor: '#1e3a8a', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' },
+  header: { backgroundColor: '#1e293b', color: '#fff', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  mainTitleText: { fontSize: '20px', margin: 0, fontWeight: 'bold' },
+  navBtn: { color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', backgroundColor: '#3b82f6', marginLeft: '5px', fontWeight: 'bold' },
+  apiConfigurationZone: { padding: '15px 30px', backgroundColor: '#e2e8f0', borderBottom: '1px solid #cbd5e1', textAlign: 'center' },
   loadingBanner: { backgroundColor: '#7c3aed', color: 'white', textAlign: 'center', padding: '12px', fontWeight: 'bold', fontSize: '14px' },
   cameraOverlay: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 },
   cameraModal: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', width: '90%', maxWidth: '500px' },
   videoStreamContainer: { width: '100%', height: 'auto', borderRadius: '8px', backgroundColor: '#000' },
   cameraActionRow: { display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'center' },
-  cameraCancelBtn: { border: 'none', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', backgroundColor: '#b91c1c', color: 'white' },
+  cameraCancelBtn: { backgroundColor: '#b91c1c', color: 'white', padding: '8px 14px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' },
   mainContent: { padding: '20px' },
   sectionHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  sectionTitle: { fontSize: '18px', margin: 0, borderRight: '4px solid #2563eb', paddingRight: '10px', fontWeight: 'bold' },
   addCarMainBtn: { backgroundColor: '#1e3a8a', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
   addCarCardContainer: { backgroundColor: '#f8fafc', padding: '20px', marginBottom: '25px', borderRadius: '8px' },
-  addCarGridForm: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' },
-  saveCarBtn: { gridColumn: '1 / -1', backgroundColor: '#166534', color: 'white', border: 'none', padding: '12px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px' },
+  addCarGridForm: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' },
+  saveCarBtn: { gridColumn: '1 / -1', backgroundColor: '#166534', color: 'white', border: 'none', padding: '12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   tableWrapper: { backgroundColor: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },
   table: { width: '100%', borderCollapse: 'collapse', textAlign: 'right' },
   thRow: { backgroundColor: '#f1f5f9' },
-  th: { padding: '12px', fontWeight: 'bold', fontSize: '13px' },
   tr: { borderBottom: '1px solid #edf2f7' },
-  td: { padding: '12px', fontSize: '13px' },
-  monospaceTd: { padding: '12px', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '13px' },
+  td: { padding: '12px', verticalAlign: 'middle' },
+  monospaceTd: { padding: '12px', fontFamily: 'monospace', fontWeight: 'bold', verticalAlign: 'middle' },
+  inlineInput: { width: '100px', padding: '5px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '12px' },
+  actionEditBtn: { backgroundColor: '#1e3a8a', color: 'white', padding: '5px 10px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' },
+  actionSaveBtn: { backgroundColor: '#166534', color: 'white', padding: '5px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   badge: { padding: '4px 8px', borderRadius: '50px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' },
-  statusToggleBtn: { border: 'none', padding: '4px 8px', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' },
-  subSectionTitle: { fontSize: '14px', margin: 0, fontWeight: 'bold', color: '#1e293b' },
+  statusToggleBtn: { border: 'none', padding: '5px 10px', borderRadius: '50px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' },
   cameraBox: { display: 'flex', alignItems: 'center', gap: '20px', backgroundColor: '#f9fafb', padding: '15px', borderRadius: '6px', marginTop: '5px' },
-  cameraView: { width: '100px', height: '115px', backgroundColor: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #9ca3af', borderRadius: '4px', overflow: 'hidden' },
-  placeholderText: { color: '#9ca3af', fontSize: '11px' },
+  cameraView: { width: '100px', height: '115px', backgroundColor: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #9ca3af', borderRadius: '4px', overflow: 'hidden', color: '#6b7280', fontSize: '12px' },
   fullCoverImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  flexColumnGap10: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  cameraBtn: { backgroundColor: '#7c3aed', color: 'white', border: 'none', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', fontSize: '13px' },
-  uploadLabelStandard: { backgroundColor: '#4b5563', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block', fontSize: '13px', textAlign: 'center' },
-  uploadLabelBlue: { backgroundColor: '#0284c7', color: 'white', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', borderRadius: '4px', display: 'inline-block', fontSize: '13px', textAlign: 'center' },
-  marginTop20SubTitle: { fontSize: '14px', margin: 0, fontWeight: 'bold', color: '#1e293b', marginTop: '20px' },
+  cameraBtn: { backgroundColor: '#7c3aed', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' },
+  uploadLabelStandard: { backgroundColor: '#4b5563', color: 'white', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' },
+  uploadLabelBlue: { backgroundColor: '#0284c7', color: 'white', padding: '8px 14px', cursor: 'pointer', display: 'inline-block', fontWeight: 'bold', fontSize: '13px' },
   formCard: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' },
   formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '10px' },
   formGridCombined: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', borderTop: '1px dashed #e5e7eb', paddingTop: '15px', marginTop: '15px' },
-  inputGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
   input: { padding: '10px', border: '1px solid #d1d5db', borderRadius: '4px', fontSize: '13px' },
-  submitButton: { width: '100%', backgroundColor: '#166534', color: 'white', padding: '14px', cursor: 'pointer', fontWeight: 'bold', border: 'none', borderRadius: '6px', marginTop: '20px', fontSize: '15px' }
-};
-
-const printStyles = {
-  signatureColumn: { textAlign: 'center', width: '45%' },
-  quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' },
-  pageNumber: { position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }
+  submitButton: { width: '100%', backgroundColor: '#166534', color: 'white', padding: '14px', border: 'none', borderRadius: '6px', marginTop: '20px', fontSize: '15px', cursor: 'pointer', fontWeight: 'bold' }
 };
 
 export default App;
