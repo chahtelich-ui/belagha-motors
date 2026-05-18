@@ -377,7 +377,7 @@ function App() {
           )}
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري {isLoadingAI ? 'استخراج' : ''} نصوص رخصة السياقة الجزائرية وملء الخانات تلقائياً...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخراج نصوص رخصة السياقة الجزائرية وملء الخانات تلقائياً...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
