@@ -239,16 +239,11 @@ function App() {
         selectedModelInstance = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
       }
 
-      let promptInstruction = `استخرج البيانات بدقة كالتالي تماماً بدون أي كلام إضافي:`;
+      let promptInstruction = "استخرج البيانات بدقة كالتالي تماماً بدون أي كلام إضافي:";
       if (scanType === 'license') {
-        promptInstruction += `
-        الاسم: [الاسم واللقب باللاتينية بالكامل]
-        الرقم: [رقم رخصة السياقة كاملاً]
-        الميلاد: [تاريخ ومكان الميلاد]
-        الصدور: [تاريخ صدور الوثيقة]`;
+        promptInstruction += "\nالاسم: [الاسم واللقب باللاتينية بالكامل]\nالرقم: [رقم رخصة السياقة كاملاً]\nالميلاد: [تاريخ ومكان الميلاد]\nالصدور: [تاريخ صدور الوثيقة]";
       } else {
-        promptInstruction += `
-        اللوحة: [رقم اللوحة المنجمية مثل 03813-193-25]`;
+        promptInstruction += "\nاللوحة: [رقم اللوحة المنجمية مثل 03813-193-25]";
       }
 
       const imagePayload = {
@@ -290,7 +285,7 @@ function App() {
     }
   };
 
-  const handleCreateContractSubmit = (e) => {
+  const handleOriginalPrintSubmit = (e) => {
     e.preventDefault();
     if (!contractForm.selectedCarId || calculatedDays === 0) {
       alert("يرجى مراجعة التواريخ والسيارات أولاً.");
@@ -463,7 +458,7 @@ function App() {
         {activeTab === 'new-contract' && (
           <main style={styles.mainContent}>
             <div style={styles.formCard}>
-              <form onSubmit={handleCreateContractSubmit}>
+              <form onSubmit={handleOriginalPrintSubmit}>
                 <h3 style={styles.subSectionTitle}>1. صورة المستأجر الحية (صورة الوجه)</h3>
                 <div style={styles.cameraBox}>
                   <div style={styles.cameraView}>
@@ -612,7 +607,7 @@ function App() {
                 <p><strong>• Accidents & Dégâts:</strong> Le locataire paie les frais de réparation en espèces immédiatement.</p>
                 <p><strong>• Documents:</strong> La carte grise originale n'est pas remise au client.</p>
                 <p><strong>• Carburant & Propreté:</strong> Restituer avec le même niveau de carburant et propre, sous peine de pénalités.</p>
-                <p><strong>• Infractions & Radar:</strong> Le locataire est civilement et pénalement responsable de tous les flashs radars.</p>
+                <p><strong>• Infractions & Radar:</strong> Le locataire is civilement et pénalement responsable de tous les flashs radars.</p>
                 <p><strong>• Fourrière:</strong> En cas de mise en fourrière, le locataire paie tous les frais et les jours de blocage.</p>
               </div>
             </div>
@@ -620,7 +615,7 @@ function App() {
             <div style={printStyles.footerSign}>
               <div style={printStyles.signatureColumn}>
                 <span>توقيع المستأجر (قرأت ووافقت)</span><br/>
-                <span style={printStyles.fontWeightNormal10}>Lu et approuvé</span>
+                <span style={{fontSize: '10px', fontWeight: 'normal'}}>Lu et approuvé</span>
                 <div style={printStyles.signatureBox}></div>
               </div>
               <div style={printStyles.signatureColumn}>
@@ -639,42 +634,42 @@ function App() {
               </div>
             </div>
             
-            <div style={styles.marginTop30}>
+            <div style={{marginTop: '30px'}}>
               <h3 style={printStyles.quittanceTitle}>QUITTANCE DE PAIEMENT / وصل استلام مالي رسمي</h3>
               
-              <table className="print-table">
+              <table style={{width: '100%', borderCollapse: 'collapse', marginTop: '20px'}}>
                 <tbody>
                   <tr>
-                    <td style={printStyles.tableLabelTd}>التاريخ الإداري / Date</td>
-                    <td style={printStyles.fontMonospace}>{printedContract.dateString ? printedContract.dateString.split(' ')[0] : ''}</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px'}}>التاريخ الإداري / Date</td>
+                    <td style={{fontFamily: 'monospace', border: '1px solid #000', padding: '12px', fontSize: '13px'}}>{printedContract.dateString ? printedContract.dateString.split(' ')[0] : ''}</td>
                   </tr>
                   <tr>
-                    <td style={printStyles.tableLabelTd}>استلمنا من السيد(ة) / Client</td>
-                    <td>{printedContract.tenantName}</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px'}}>استلمنا من السيد(ة) / Client</td>
+                    <td style={{border: '1px solid #000', padding: '12px', fontSize: '13px'}}>{printedContract.tenantName}</td>
                   </tr>
                   <tr>
-                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%'}}>المركبة المؤجرة / Véhicule</td>
-                    <td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px'}}>المركبة المؤجرة / Véhicule</td>
+                    <td style={{border: '1px solid #000', padding: '12px', fontSize: '13px'}}>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td>
                   </tr>
                   <tr>
-                    <td style={printStyles.tableLabelTd}>مبلغ الكراء الإجمالي المدفوع</td>
-                    <td style={printStyles.fontWeightBold16Color111}>{printedContract.total} دج</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px'}}>مبلغ الكراء الإجمالي المدفوع</td>
+                    <td style={{fontSize: '16px', fontWeight: 'bold', color: '#111', border: '1px solid #000', padding: '12px'}}>{printedContract.total} دج</td>
                   </tr>
                   <tr>
-                    <td style={printStyles.tableLabelTd}>مبلغ الضمان المودع (Caution)</td>
-                    <td>{printedContract.caution} دج</td>
+                    <td style={{fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%', border: '1px solid #000', padding: '12px', fontSize: '13px'}}>مبلغ الضمان المودع (Caution)</td>
+                    <td style={{border: '1px solid #000', padding: '12px', fontSize: '13px'}}>{printedContract.caution} دج</td>
                   </tr>
                 </tbody>
               </table>
               
-              <div style={printStyles.footerSignQuittance}>
+              <div style={{display: 'flex', justifyContent: 'space-between', marginTop: '180px', fontWeight: 'bold'}}>
                 <div style={printStyles.signatureColumn}>
                   <span>توقيع وتأكيد الزبون</span>
-                  <div style={printStyles.signatureBoxQuittance}></div>
+                  <div style={{border: '1px solid #000', height: '80px', marginTop: '10px', borderRadius: '4px'}}></div>
                 </div>
                 <div style={printStyles.signatureColumn}>
                   <span>ختم مصلحة الحسابات والمالية</span>
-                  <div style={printStyles.signatureBoxQuittance}></div>
+                  <div style={{border: '1px solid #000', height: '80px', marginTop: '10px', borderRadius: '4px'}}></div>
                 </div>
               </div>
             </div>
@@ -763,15 +758,9 @@ const printStyles = {
   secondaryPageLogoImg: { height: '70px', objectFit: 'contain' },
   marginTop20Title: { borderBottom: '1px solid #000', paddingBottom: '4px', fontSize: '13px', fontWeight: 'bold', marginTop: '20px' },
   footerSign: { display: 'flex', justifyContent: 'space-between', marginTop: '200px', fontWeight: 'bold' },
-  footerSignQuittance: { display: 'flex', justifyContent: 'space-between', marginTop: '180px', fontWeight: 'bold' },
   signatureColumn: { textAlign: 'center', width: '45%' },
-  fontWeightNormal10: { fontSize: '10px', fontWeight: 'normal' },
   signatureBox: { border: '1px solid #000', height: '90px', marginTop: '10px', borderRadius: '4px' },
-  signatureBoxQuittance: { border: '1px solid #000', height: '80px', marginTop: '10px', borderRadius: '4px' },
-  quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' },
-  tableLabelTd: { fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' },
-  fontMonospace: { fontFamily: 'monospace' },
-  fontWeightBold16Color111: { fontSize: '16px', fontWeight: 'bold', color: '#111' }
+  quittanceTitle: { textAlign: 'center', margin: '0 0 20px 0', fontWeight: 'bold', fontSize: '16px' }
 };
 
 export default App;
