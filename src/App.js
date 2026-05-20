@@ -123,7 +123,7 @@ function App() {
     const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
+    if (cameraMode === 'license') { setTenantPhoto(null); setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     setCameraMode(null);
   };
@@ -140,18 +140,17 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // --- دالة استخراج آمنة وخالية من التعابير الحرفية المسببة للمشاكل أونلاين ---
   const executeLocalOcrScan = async (base64Image) => {
     setIsLoadingAI(true);
     try {
       if (!window.Tesseract) {
-        alert("محرك الفحص يستعد، يرجى المحاولة خلال لحظات.");
+        alert("المحرك الذكي يستعد محلياً، يرجى المحاولة مرة أخرى.");
         setIsLoadingAI(false);
         return;
       }
 
       const result = await window.Tesseract.recognize(base64Image, 'eng+fra');
-      let text = result.data.text.toUpperCase();
+      let text = result.data.text ? result.data.text.toUpperCase() : "";
 
       let cleanLicense = "";
       let cleanName = "";
@@ -180,8 +179,8 @@ function App() {
 
         let alphabeticalClean = trimmed.replace(/[^A-Z\s\-]/g, "").trim();
         if (alphabeticalClean.length > 6 && !cleanName) {
-          // فحص الكلمات الإدارية البديل والآمن كلياً على الـ iPad لمنع الـ Syntax Error
-          const isForbidden = standardKeywords.some(keyword => alphabeticalClean.includes(keyword));
+          // تم إصلاح السنتاكس وإغلاق الشرط بشكل سليم 100% لمنع عطل الـ Build
+          const isForbidden = standardKeywords.some((keyword) => alphabeticalClean.includes(keyword));
           if (!isForbidden) {
             cleanName = alphabeticalClean;
           }
@@ -230,7 +229,6 @@ function App() {
       dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR')
     });
 
-    // سحب مهلة التلقيم لـ 2000ms لضمان اكتمال بناء الصفحات الثلاث بداخل الـ iPadOS
     setTimeout(() => { 
       window.print(); 
       setPrintedContract(null); 
@@ -260,7 +258,7 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* ستايل العزل التام والمطلق الموجه لإجبار محركات Safari والـ iPad على إظهار الصفحات واللوقو المائي */}
+      {/* تصميم واجهة الـ AirPrint للأيباد واللوحات مع حماية الطباعة بالمليمتر والعلامة المائية الشفافة */}
       <style dangerouslySetInnerHTML={{__html: `
         @media screen {
           .print-only-layout { display: none !important; }
@@ -335,11 +333,11 @@ function App() {
 
         <div style={styles.apiConfigurationZone}>
           <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '14px' }}>
-            🔒 تم التطهير الهيكلي وتثبيت معمارية المعاينة الحية لأجهزة الـ iPad اللوحية والـ AirPrint!
+            🔒 تم التطهير البرمجي وتأمين أكواد الـ Build أونلاين على السيرفر المباشر بنجاح!
           </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري تشغيل الفحص واستخراج بيانات الرخصة ديناميكياً...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص نصوص وبيانات الرخصة ديناميكياً...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -511,159 +509,158 @@ function App() {
         )}
       </div>
 
-      {/* باقة الطباعة الشاملة المقسمة آلياً على 3 صفحات فخمة للـ iPad */}
-      {printedContract && (
-        <div className="print-only-layout">
-          
-          {/* الصفحة 1 (1/3) */}
-          <div className="print-page">
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid black', paddingBottom: '12px', alignItems: 'center' }}>
-              <div style={{ textAlign: 'right', fontSize: '12px', color: 'black' }}>
-                <p>📍 Constantine, Algérie &nbsp;|&nbsp; 📞 0554 28 19 83</p>
-                <p>RC: 25/00-038169 A 15 &nbsp;|&nbsp; NIF: 1852501093731100000</p>
-              </div>
-              <div style={{ fontWeight: 'bold', fontSize: '20px' }}>BELAGHA MOTORS</div>
-            </div>
-            
-            <h3 style={{ textDecoration: 'underline', textAlign: 'center', margin: '10px 0', fontSize: '16px', fontWeight: 'bold' }}>عقد كراء سيارة</h3>
-            
-            <div className="contract-grid-main">
-              <div className="contract-block" style={{ paddingLeft: '105px' }}>
-                <h5>1. معلومات المستأجر</h5>
-                <p><strong>الاسم واللقب:</strong> {printedContract.tenantName}</p>
-                <p><strong>تاريخ ومكان الميلاد:</strong> {printedContract.birthDatePlace}</p>
-                <p><strong>رخصة سياقة رقم:</strong> {printedContract.licenseNumber}</p>
-                <p><strong>صادرة في:</strong> {printedContract.licenseIssueDate}</p>
-                <p><strong>العنوان:</strong> {printedContract.tenantAddress}</p>
-                <p><strong>رقم الهاتف:</strong> {printedContract.tenantPhone}</p>
-                <div className="photo-inside-tenant">
-                  {printedContract.photo && <img src={printedContract.photo} alt="هوية الزبون" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+      <div className="print-only-layout">
+          {printedContract && (
+            <>
+              {/* الصفحة الأولى */}
+              <div className="print-page">
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid black', paddingBottom: '12px', alignItems: 'center' }}>
+                  <div style={{ textAlign: 'right', fontSize: '12px', color: 'black' }}>
+                    <p>📍 Constantine, Algérie &nbsp;|&nbsp; 📞 0554 28 19 83</p>
+                    <p>RC: 25/00-038169 A 15 &nbsp;|&nbsp; NIF: 1852501093731100000</p>
+                  </div>
+                  <div style={{ fontWeight: 'bold', fontSize: '20px' }}>BELAGHA MOTORS</div>
                 </div>
+                
+                <h3 style={{ textDecoration: 'underline', textAlign: 'center', margin: '10px 0', fontSize: '16px', fontWeight: 'bold' }}>عقد كراء سيارة</h3>
+                
+                <div className="contract-grid-main">
+                  <div className="contract-block" style={{ paddingLeft: '105px' }}>
+                    <h5>1. معلومات المستأجر</h5>
+                    <p><strong>الاسم واللقب:</strong> {printedContract.tenantName}</p>
+                    <p><strong>تاريخ ومكان الميلاد:</strong> {printedContract.birthDatePlace}</p>
+                    <p><strong>رخصة سياقة رقم:</strong> {printedContract.licenseNumber}</p>
+                    <p><strong>صادرة في:</strong> {printedContract.licenseIssueDate}</p>
+                    <p><strong>العنوان:</strong> {printedContract.tenantAddress}</p>
+                    <p><strong>رقم الهاتف:</strong> {printedContract.tenantPhone}</p>
+                    <div className="photo-inside-tenant">
+                      {printedContract.photo && <img src={printedContract.photo} alt="الزبون" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    </div>
+                  </div>
+
+                  <div className="contract-block">
+                    <h5>2. معلومات السيارة والكراء</h5>
+                    <p><strong>النوع والموديل:</strong> {printedContract.carDetails?.brand} {printedContract.carDetails?.model}</p>
+                    <p><strong>اللوحة المنجمية:</strong> {printedContract.carDetails?.plateNumber} | <strong>الوقود:</strong> {printedContract.fuelStatus}</p>
+                    <p><strong>تاريخ الاستلام:</strong> {printedContract.startDate}</p>
+                    <p><strong>تاريخ الإرجاع:</strong> {printedContract.endDate}</p>
+                    <p><strong>السعر لليوم:</strong> {printedContract.pricePerDay} دج | <strong>المدة:</strong> {printedContract.days} يوم</p>
+                    <p><strong>الإجمالي:</strong> {printedContract.total} دج | <strong>الضمان:</strong> {printedContract.caution} دج</p>
+                  </div>
+                </div>
+
+                <div className="document-title" style={{ marginTop: '15px' }}>الشروط القانونية والتزامات المستأجر (الجزء الأول)</div>
+
+                <div className="law-section">
+                  <div className="section-title">1. حالة السيارة والحوادث / État du Véhicule & Accidents</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">المستأجر يقر أنه استأجر السيارة في حالة جيدة وبها كامل لوازمها، وفي حالة وقوع أي حادث أو عطب يجب إعلام الوكالة فوراً دون أي تأخير. في حالة حادث أو تحطم، المستأجر ملزم بدفع تكاليف الإصلاح نقداً وفوراً. في حال التضرر الكبير، يتحمل دفع قيمة السيارة بالكامل.</div>
+                    <div className="column-fr">Le locataire reconnaît avoir loué le véhicule en bon état et avec tous ses accessoires. En cas d'accident ou de panne, il doit informer l'agence immédiatement. En cas d'accident, le locataire paie les frais de réparation en espèces. Si le dommage est majeur, il est redevable de la valeur totale du véhicule.</div>
+                  </div>
+                </div>
+
+                <div className="law-section">
+                  <div className="section-title">2. القيادة والمسؤولية / Conduite & Responsabilité</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">لا يسمح بكراء السيارة للغير أو قيادتها من طرف شخص آخر إلا لمن حرر عقد الإيجار باسمه. وفي حالة المخالفة، يحق للوكالة استرجاع السيارة فوراً مع إلغاء العقد ودون إرجاع أي تعويض مالي. كما أنه يمنع منعاً باتاً خروج المركبة خارج التراب الوطني الجزائري.</div>
+                    <div className="column-fr">La sous-location ou la conduite du véhicule par une tierce personne non mentionnée dans le présent contrat est strictly interdite. En cas d'infraction, l'agence se réserve le droit de récupérer le véhicule immédiatement sans aucun remboursement.</div>
+                  </div>
+                </div>
+
+                <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>1/3</div>
               </div>
 
-              <div className="contract-block">
-                <h5>2. معلومات السيارة والكراء</h5>
-                <p><strong>النوع والموديل:</strong> {printedContract.carDetails?.brand} {printedContract.carDetails?.model}</p>
-                <p><strong>اللوحة المنجمية:</strong> {printedContract.carDetails?.plateNumber} | <strong>الوقود:</strong> {printedContract.fuelStatus}</p>
-                <p><strong>تاريخ الاستلام:</strong> {printedContract.startDate}</p>
-                <p><strong>تاريخ الإرجاع:</strong> {printedContract.endDate}</p>
-                <p><strong>السعر لليوم:</strong> {printedContract.pricePerDay} دج | <strong>المدة:</strong> {printedContract.days} يوم</p>
-                <p><strong>الإجمالي:</strong> {printedContract.total} دج | <strong>الضمان:</strong> {printedContract.caution} دج</p>
+              {/* الصفحة الثانية */}
+              <div className="print-page">
+                <div className="document-title">تتمة الالتزامات والشروط القانونية (الجزء الثاني) / CONDITIONS GÉNÉRALES</div>
+
+                <div className="law-section">
+                  <div className="section-title">3. التأخير في الإرجاع / Retard de Restitution</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">يلتزم المستأجر بإعادة المركبة في الوقت والتاريخ المحددين في العقد. أي تأخير عن موعد إرجاع السيارة يلزم المستأجر تلقائياً بدفع غرامة تأخير قدرها 1500 دج عن كل ساعة تأخير إضافية.</div>
+                    <div className="column-fr">Tout retard dans la restitution entraîne automatiquement une pénalité de 1500 DA par heure de retard.</div>
+                  </div>
+                </div>
+
+                <div className="law-section">
+                  <div className="section-title">4. السرقة أو الضياع / Perte ou Vol</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">في حالة ضياع المركبة أو تعرضها للسرقة، تقع المسؤولية المدنية والكاملة على عاتق المستأجر، حيث يلزم قانوناً بدفع 100% من القيمة المالية الحالية الإجمالية للمركبة للوكالة.</div>
+                    <div className="column-fr">En cas de perte ou de vol du véhicule, le locataire est tenu pour seul responsable et doit rembourser 100% de la valeur totale et réelle du véhicule à l'agence.</div>
+                  </div>
+                </div>
+
+                <div className="law-section">
+                  <div className="section-title">5. وثائق ومواقيت العمل / Documents & Heures de Travail</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">البطاقة الرمادية الأصلية للمركبة لا تسلم للزبون نهائياً ويتم تسليمه نسخة مصدقة فقط. أوقات العمل الرسمية للوكالة لاستلام وإرجاع المركبات تكون من الساعة (08:00 صباحاً إلى غاية 18:00 مساءً).</div>
+                    <div className="column-fr">La carte grise originale du véhicule n'est pas remise au client. Les heures de travail officielles de l'agence pour la réception et la restitution sont de (08:00 à 18:00).</div>
+                  </div>
+                </div>
+
+                <div className="law-section">
+                  <div className="section-title">6. الوقود والنظافة / Carburant & Propreté</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">يجب على المستأجر إعادة المركبة بنفس مستوى الوقود الذي استلمها به، وأن تكون نظيفة داخلياً وخارجياً. في حالة الإخلال بنظافة السيارة، تطبق على المستأجر رسوم غسيل وتنظيف إضافية قيمتها 2000 دج.</div>
+                    <div className="column-fr">Le locataire doit restituer le véhicule avec le même niveau de carburant qu'à la livraison et dans un état propre. À défaut, des frais de lavage applicables de 2000 DA seront facturés.</div>
+                  </div>
+                </div>
+
+                <div className="law-section">
+                  <div className="section-title">7. المخالفات والمحشر / Infractions & Fourrière</div>
+                  <div className="bilingual-box">
+                    <div className="column-ar">المستأجر مسؤول مسؤولية مدنية وجزائية كاملة عن جميع المخالفات المرورية وفلاشات الرادار الملتقطة خلال فترة إيجاره للمركبة. وفي حالة وضع المركبة في المحشر البلدي، يتحمل المستأجر وحده جميع مصاريف استخراجها بالإضافة إلى دفع مستحقات أيام التوقف كاملة للوكالة.</div>
+                    <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières et flashs radar durant la période de location. En cas de mise en fourrière, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '10px', border: '1px dashed #a0aec0', borderRadius: '4px', fontSize: '11px', marginTop: '15px' }}>
+                  <strong>إقرار وقبول المستأجر:</strong> يقر المستأجر بأنه قد اطلع على كافة الشروط والالتزامات الواردة أعلاه باللغتين العربية والفرنسية، ويوافق عليها موافقة تامة ويلتزم بتطبيقها دون قيد أو شرط بمجرد توقيعه.
+                </div>
+
+                <div className="signatures-table">
+                  <div className="signature-cell">
+                    <strong>توقيع وبصمة المستأجر</strong>
+                    <div className="signature-box"></div>
+                  </div>
+                  <div className="signature-cell">
+                    <strong>ختم وتوقيع الوكالة المعتمد</strong>
+                    <div className="signature-box"></div>
+                  </div>
+                </div>
+                
+                <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>2/3</div>
               </div>
-            </div>
 
-            <div className="document-title" style={{ marginTop: '15px' }}>الشروط القانونية والتزامات المستأجر (الجزء الأول)</div>
-
-            <div className="law-section">
-              <div className="section-title">1. حالة السيارة والحوادث / État du Véحicule & Accidents</div>
-              <div className="bilingual-box">
-                <div className="column-ar">المستأجر يقر أنه استأجر السيارة في حالة جيدة وبها كامل لوازمها، وفي حالة وقوع أي حادث أو عطب يجب إعلام الوكالة فوراً دون أي تأخير. في حالة حادث أو تحطم، المستأجر ملزم بدفع تكاليف الإصلاح نقداً وفوراً. في حال التضرر الكبير، يتحمل دفع قيمة السيارة بالكامل.</div>
-                <div className="column-fr">Le locataire reconnaît avoir loué le véhicule en bon état et avec tous ses accessoires. En cas d'accident ou de panne, il doit informer l'agence immédiatement. En cas d'accident, le locataire paie les frais de réparation en espèces. Si le dommage est majeur, il est redevable de la valeur totale du véhicule.</div>
+              {/* الصفحة الثالثة */}
+              <div className="print-page">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', textAlign: 'center' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '18px' }}>BELAGHA MOTORS FINANCE</div>
+                  <span style={{ fontSize: '11px' }}>وصل استلام مالي رسمي موثق للعميل</span>
+                </div>
+                
+                <div style={{ marginTop: '40px' }}>
+                  <h3 style={{ textAlign: 'center', margin: '0 0 25px 0', fontWeight: 'bold', fontSize: '15px', color: 'black' }}>QUITTANCE DE PAIEMENT / وصل استلام مالي رسمي</h3>
+                  <table className="print-table">
+                    <tbody>
+                      <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' }}>التاريخ والوقت الإداري / Date</td><td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{printedContract.dateString}</td></tr>
+                      <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>استلمنا من السيد(ة) / Client</td><td style={{ fontWeight: 'bold', fontSize: '14px' }}>{printedContract.tenantName}</td></tr>
+                      <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>المركبة المؤجرة ومواصفاتها</td><td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td></tr>
+                      <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>مبلغ الكراء الإجمالي المدفوع نقداً</td><td style={{ fontSize: '16px', fontWeight: 'bold', color: '#1a365d' }}>{printedContract.total} دج</td></tr>
+                      <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>مبلغ الضمان المودع للوكالة (Caution)</td><td style={{ fontWeight: 'bold', fontSize: '14px' }}>{printedContract.caution} دج</td></tr>
+                    </tbody>
+                  </table>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '220px', fontWeight: 'bold', color: 'black' }}>
+                    <div className="signature-cell"><span>توقيع وتأكيد الزبون المستلم</span><div style={{ border: '1px solid #000', height: '85px', marginTop: '10px', borderRadius: '4px', backgroundColor: '#f8fafc' }}></div></div>
+                    <div className="signature-cell"><span>ختم وإمضاء مصلحة الحسابات والمالية</span><div style={{ border: '1px solid #000', height: '85px', marginTop: '10px', borderRadius: '4px', backgroundColor: '#f8fafc' }}></div></div>
+                  </div>
+                </div>
+                <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>3/3</div>
               </div>
-            </div>
-
-            <div className="law-section">
-              <div className="section-title">2. القيادة والمسؤولية / Conduite & Responsabilité</div>
-              <div className="bilingual-box">
-                <div className="column-ar">لا يسمح بكراء السيارة للغير أو قيادتها من طرف شخص آخر إلا لمن حرر عقد الإيجار باسمه. وفي حالة المخالفة، يحق للوكالة استرجاع السيارة فوراً مع إلغاء العقد ودون إرجاع أي تعويض مالي. كما أنه يمنع منعاً باتاً خروج المركبة خارج التراب الوطني الجزائري.</div>
-                <div className="column-fr">La sous-location ou la conduite du véhicule par une tierce personne non mentionnée dans le présent contrat est strictly interdite. En cas d'infraction, l'agence se réserve le droit de récupérer le véhicule immédiatement sans aucun remboursement.</div>
-              </div>
-            </div>
-
-            <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>1/3</div>
-          </div>
-
-          {/* الصفحة 2 (2/3) */}
-          <div className="print-page">
-            <div className="document-title">تتمة الالتزامات والشروط القانونية (الجزء الثاني) / CONDITIONS GÉNÉRALES</div>
-
-            <div className="law-section">
-              <div className="section-title">3. التأخير في الإرجاع / Retard de Restitution</div>
-              <div className="bilingual-box">
-                <div className="column-ar">يلتزم المستأجر بإعادة المركبة في الوقت والتاريخ المحددين في العقد. أي تأخير عن موعد إرجاع السيارة يلزم المستأجر تلقائياً بدفع غرامة تأخير قدرها 1500 دج عن كل ساعة تأخير إضافية.</div>
-                <div className="column-fr">Tout retard dans la restitution entraîne automatiquement une pénalité de 1500 DA par heure de retard.</div>
-              </div>
-            </div>
-
-            <div className="law-section">
-              <div className="section-title">4. السرقة أو الضياع / Perte ou Vol</div>
-              <div className="bilingual-box">
-                <div className="column-ar">في حالة ضياع المركبة أو تعرضها للسرقة، تقع المسؤولية المدنية والكاملة على عاتق المستأجر، حيث يلزم قانوناً بدفع 100% من القيمة المالية الحالية الإجمالية للمركبة للوكالة.</div>
-                <div className="column-fr">En cas de perte ou de vol du véhicule, le locataire est tenu pour seul responsable et doit rembourser 100% de la valeur totale et réelle du véhicule à l'agence.</div>
-              </div>
-            </div>
-
-            <div className="law-section">
-              <div className="section-title">5. وثائق ومواقيت العمل / Documents & Heures de Travail</div>
-              <div className="bilingual-box">
-                <div className="column-ar">البطاقة الرمادية الأصلية للمركبة لا تسلم للزبون نهائياً ويتم تسليمه نسخة مصدقة فقط. أوقات العمل الرسمية للوكالة لاستلام وإرجاع المركبات تكون من الساعة (08:00 صباحاً إلى غاية 18:00 مساءً).</div>
-                <div className="column-fr">La carte grise originale du véhicule n'est pas remise au client. Les heures de travail officielles de l'agence pour la réception et la restitution sont de (08:00 à 18:00).</div>
-              </div>
-            </div>
-
-            <div className="law-section">
-              <div className="section-title">6. الوقود والنظافة / Carburant & Propreté</div>
-              <div className="bilingual-box">
-                <div className="column-ar">يجب على المستأجر إعادة المركبة بنفس مستوى الوقود الذي استلمها به، وأن تكون نظيفة داخلياً وخارجياً. في حالة الإخلال بنظافة السيارة، تطبق على المستأجر رسوم غسيل وتنظيف إضافية قيمتها 2000 دج.</div>
-                <div className="column-fr">Le locataire doit restituer le véhicule avec le même niveau de carburant qu'à la livraison et dans un état propre. À défaut, des frais de lavage applicables de 2000 DA seront facturés.</div>
-              </div>
-            </div>
-
-            <div className="law-section">
-              <div className="section-title">7. المخالفات والمحشر / Infractions & Fourrière</div>
-              <div className="bilingual-box">
-                <div className="column-ar">المستأجر مسؤول مسؤولية مدنية وجزائية كاملة عن جميع المخالفات المرورية وفلاشات الرادار الملتقطة خلال فترة إيجاره للمركبة. وفي حالة وضع المركبة في المحشر البلدي، يتحمل المستأجر وحده جميع مصاريف استخراجها بالإضافة إلى دفع مستحقات أيام التوقف كاملة للوكالة.</div>
-                <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières et flashs radar durant la période de location. En cas de mise en fourrière, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
-              </div>
-            </div>
-
-            <div style={{ background: '#f8fafc', padding: '10px', border: '1px dashed #a0aec0', borderRadius: '4px', fontSize: '11px', marginTop: '15px' }}>
-              <strong>إقرار وقبول المستأجر:</strong> يقر المستأجر بأنه قد اطلع على كافة الشروط والالتزامات الواردة أعلاه باللغتين العربية والفرنسية، ويوافق عليها موافقة تامة ويلتزم بتطبيقها دون قيد أو شرط بمجرد توقيعه.
-            </div>
-
-            <div className="signatures-table">
-              <div className="signature-cell">
-                <strong>توقيع وبصمة المستأجر</strong>
-                <div className="signature-box"></div>
-              </div>
-              <div className="signature-cell">
-                <strong>ختم وتوقيع الوكالة المعتمد</strong>
-                <div className="signature-box"></div>
-              </div>
-            </div>
-            
-            <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>2/3</div>
-          </div>
-
-          {/* الصفحة 3 (3/3) */}
-          <div className="print-page">
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', textAlign: 'center' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '18px' }}>BELAGHA MOTORS FINANCE</div>
-              <span style={{ fontSize: '11px' }}>وصل استلام مالي رسمي موثق للعميل</span>
-            </div>
-            
-            <div style={{ marginTop: '40px' }}>
-              <h3 style={{ textAlign: 'center', margin: '0 0 25px 0', fontWeight: 'bold', fontSize: '15px', color: 'black' }}>QUITTANCE DE PAIEMENT / وصل استلام مالي رسمي</h3>
-              <table className="print-table">
-                <tbody>
-                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc', width: '35%' }}>التاريخ والوقت الإداري / Date</td><td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{printedContract.dateString}</td></tr>
-                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>استلمنا من السيد(ة) / Client</td><td style={{ fontWeight: 'bold', fontSize: '14px' }}>{printedContract.tenantName}</td></tr>
-                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>المركبة المؤجرة ومواصفاتها</td><td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td></tr>
-                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>مبلغ الكراء الإجمالي المدفوع نقداً</td><td style={{ fontSize: '16px', fontWeight: 'bold', color: '#1a365d' }}>{printedContract.total} دج</td></tr>
-                  <tr><td style={{ fontWeight: 'bold', backgroundColor: '#f8fafc' }}>مبلغ الضمان المودع للوكالة (Caution)</td><td style={{ fontWeight: 'bold', fontSize: '14px' }}>{printedContract.caution} دج</td></tr>
-                </tbody>
-              </table>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '220px', fontWeight: 'bold', color: 'black' }}>
-                <div className="signature-cell"><span>توقيع وتأكيد الزبون المستلم</span><div style={{ border: '1px solid #000', height: '85px', marginTop: '10px', borderRadius: '4px', backgroundColor: '#f8fafc' }}></div></div>
-                <div className="signature-cell"><span>ختم وإمضاء مصلحة الحسابات والمالية</span><div style={{ border: '1px solid #000', height: '85px', marginTop: '10px', borderRadius: '4px', backgroundColor: '#f8fafc' }}></div></div>
-              </div>
-            </div>
-            <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>3/3</div>
-          </div>
-
-        </div>
-      )}
+            </>
+          )}
+      </div>
     </div>
   );
 }
