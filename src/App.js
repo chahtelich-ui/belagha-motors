@@ -13,7 +13,7 @@ function App() {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
 
-  // إدارة وحفظ الـ API KEY الخاص بمسير الوكالة تلقائياً بذاكرة المتصفح
+  // مفتاح الـ API المحفوظ آلياً
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_openrouter_secure_key') || '');
   const [showKeyStatus, setShowKeyStatus] = useState(false);
 
@@ -125,6 +125,27 @@ function App() {
     }
   };
 
+  // دالة تصغير حجم الصورة آلياً لمنع رفض السيرفرات السحابية
+  const processAndCompressImage = (dataUrl, callback) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 1000;
+      let width = img.width;
+      let height = img.height;
+      if (width > MAX_WIDTH) {
+        height = Math.round((height * MAX_WIDTH) / width);
+        width = MAX_WIDTH;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL('image/jpeg', 0.7)); // ضغط جودة الصورة لـ 70%
+    };
+    img.src = dataUrl;
+  };
+
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const canvas = document.createElement('canvas');
@@ -133,8 +154,15 @@ function App() {
     canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
-    if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executePureVisionAI(dataUrl); }
+    if (cameraMode === 'tenant') {
+      setTenantPhoto(dataUrl);
+    }
+    if (cameraMode === 'license') {
+      processAndCompressImage(dataUrl, (compressedImg) => {
+        setLicensePhoto(compressedImg);
+        executePureVisionAI(compressedImg);
+      });
+    }
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     setCameraMode(null);
   };
@@ -145,26 +173,33 @@ function App() {
     const reader = new FileReader();
     reader.onloadend = () => {
       const dataUrl = reader.result;
-      if (mode === 'tenant') setTenantPhoto(dataUrl);
-      if (mode === 'license') { setLicensePhoto(dataUrl); executePureVisionAI(dataUrl); }
+      if (mode === 'tenant') {
+        setTenantPhoto(dataUrl);
+      }
+      if (mode === 'license') {
+        processAndCompressImage(dataUrl, (compressedImg) => {
+          setLicensePhoto(compressedImg);
+          executePureVisionAI(compressedImg);
+        });
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  // --- محرك الفحص السحابي الصافي والمباشر (يفكك الصورة وينسخ البيانات رغماً عن الـ iPad والشبكة) ---
+  // محرك الرؤية السحابية الصافي (بدون طوارئ فاشلة وبدون Tesseract)
   const executePureVisionAI = async (base64Image) => {
     if (!apiKey.trim()) {
-      alert("⚠️ يرجى لصق مفتاح الـ OpenRouter API KEY في الحقل العلوي أولاً لتنشيط نقل البيانات!");
+      alert("⚠️ يرجى إدخال مفتاح الـ OpenRouter API KEY في الخانة العلوية لتفعيل الفحص.");
       return;
     }
 
     setIsLoadingAI(true);
     
-    // تصفير وقائي وتنبيهي فوري للحقول
+    // تصفير الخانات فوراً عند الرفع لتجنب بقاء أي بيانات قديمة
     setContractForm(prev => ({
       ...prev,
-      tenantName: "جاري استخراج ونقل البيانات حياً...",
-      licenseNumber: "جاري استخراج ونقل البيانات حياً...",
+      tenantName: "جاري القراءة السحابية الدقيقة...",
+      licenseNumber: "جاري القراءة السحابية الدقيقة...",
       birthDatePlace: "",
       licenseIssueDate: ""
     }));
@@ -172,7 +207,6 @@ function App() {
     try {
       const cleanBase64 = base64Image.split(',')[1];
 
-      // إرسال الصورة مباشرة لمعالج الرؤية السحابي الفوري من Gemini لتفادي ضعف العداد المحلي للأيباد
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -187,13 +221,11 @@ function App() {
               content: [
                 {
                   type: "text",
-                  text: "You are an Algerian driving license OCR reader. Analyze this image and extract details. Fix all visual typos caused by plastic reflections. Return ONLY a valid strict JSON object, no markdown codeblocks, no extra words. Use exactly this format:\n{\n  \"tenantName\": \"FULL LATIN NAME IN UPPERCASE\",\n  \"licenseNumber\": \"18 DIGIT NUMBER\",\n  \"birthDate\": \"DD.MM.YYYY\",\n  \"issueDate\": \"DD.MM.YYYY\"\n}"
+                  text: "You are an Algerian driving license OCR reader. Read this image carefully. Return ONLY a valid strict JSON object, no markdown codeblocks, no extra words. Format exactly as: {\"tenantName\": \"FULL LATIN NAME\", \"licenseNumber\": \"18 DIGIT ID NUMBER\", \"birthDate\": \"DD.MM.YYYY\", \"issueDate\": \"DD.MM.YYYY\"}"
                 },
                 {
                   type: "image_url",
-                  image_url: {
-                    url: `data:image/jpeg;base64,${cleanBase64}`
-                  }
+                  image_url: { url: `data:image/jpeg;base64,${cleanBase64}` }
                 }
               ]
             }
@@ -201,10 +233,13 @@ function App() {
         })
       });
 
+      if (!response.ok) {
+        throw new Error("خطأ في الاتصال بالذكاء الاصطناعي، يرجى التأكد من المفتاح.");
+      }
+
       const result = await response.json();
       const aiResponse = result?.choices?.[0]?.message?.content || "";
       
-      // تنظيف الاستجابة بأساليب نصية مرنة معتمدة
       const cleanJson = aiResponse.replace(/```json/g, "").replace(/```/g, "").trim();
       const data = JSON.parse(cleanJson);
 
@@ -217,14 +252,15 @@ function App() {
       }));
 
     } catch (err) {
-      console.error("عطل ببروتوكول الرؤية:", err);
-      // في حال حدوث أي طارئ يتم حقن البيانات النظيفة للزبون لإتمام المعاينة الفورية
+      console.error("عطل في الاتصال بالذكاء الاصطناعي:", err);
+      alert("⚠️ تعذر استخراج البيانات. تأكد من وضوح الصورة وصلاحية مفتاح الـ API.");
+      // إبقاء الخانات فارغة عند الفشل لعدم إرباك المستخدم ببيانات قديمة
       setContractForm(prev => ({
         ...prev,
-        tenantName: "BENSLIMANE CHOUAIB MOHAMED EL HADI",
-        licenseNumber: "109950887155400004",
-        birthDatePlace: "15.12.1995 قسنطينة",
-        licenseIssueDate: "صادرة بتاريخ: 17.12.2025"
+        tenantName: "",
+        licenseNumber: "",
+        birthDatePlace: "",
+        licenseIssueDate: ""
       }));
     } finally {
       setIsLoadingAI(false);
@@ -379,7 +415,7 @@ function App() {
           </div>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ تيار الرؤية السحابية نشط: جاري تفكيك محتوى الصورة ونقل البيانات بالكامل...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص النص وترميمه تلقائياً عبر سحابة Gemini الموثوقة...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -509,7 +545,7 @@ function App() {
                   <label style={styles.uploadLabelStandard}>📂 اختيار ملف جاهز<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={{display:'none'}}/></label>
                 </div>
 
-                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي (معالج رؤية سحابي موثق)</h3>
+                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي (رؤية سحابية خالصة)</h3>
                 <div style={styles.cameraBox}>
                   <div style={styles.cameraView}>{licensePhoto ? <img src={licensePhoto} alt="الرخصة" style={styles.fullCoverImage} /> : "لم يتم رفع وثيقة"}</div>
                   <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح بالكاميرا</button>
@@ -653,7 +689,7 @@ function App() {
                   <div className="section-title">7. المخالفات والمحشر / Infractions & Fourrière</div>
                   <div className="bilingual-box">
                     <div className="column-ar">المستأجر مسؤول مسؤولية مدنية وجزائية كاملة عن جميع المخالفات المرورية وفلاشات الرادار الملتقطة خلال فترة إيجاره للمركبة. وفي حالة وضع المركبة في المحشر البلدي، يتحمل المستأجر وحده جميع مصاريف استخراجها بالإضافة إلى دفع مستحقات أيام التوقف كاملة للوكالة.</div>
-                    <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières and flashs radar durant la période de location. En cas de mise en fourrière, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
+                    <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières et flashs radar durant la période de location. En cas de mise en fourrière, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
                   </div>
                 </div>
 
