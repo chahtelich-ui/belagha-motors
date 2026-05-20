@@ -12,6 +12,7 @@ function App() {
   const [showAddCarForm, setShowAddCarForm] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
+  const [isOcrReady, setIsOcrReady] = useState(false);
 
   const [editingCarId, setEditingCarId] = useState(null);
   const [editMileage, setEditMileage] = useState('');
@@ -21,6 +22,7 @@ function App() {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const tesseractWorkerRef = useRef(null); // مرجع ثابت لحفظ المحرك مستيقظاً
 
   const [tenantPhoto, setTenantPhoto] = useState(null);
   const [licensePhoto, setLicensePhoto] = useState(null);
@@ -39,6 +41,30 @@ function App() {
   const [calculatedDays, setCalculatedDays] = useState(0);
   const [calculatedTotal, setCalculatedTotal] = useState(0);
   const [printedContract, setPrintedContract] = useState(null);
+
+  // 1. تشغيل وتدريب محرك Tesseract مسبقاً فور فتح التطبيق لحل مشكلة الـ iPad والبطء
+  useEffect(() => {
+    async function initOcr() {
+      try {
+        if (window.Tesseract) {
+          const worker = await window.Tesseract.createWorker();
+          await worker.loadLanguage('eng+fra');
+          await worker.initialize('eng+fra');
+          tesseractWorkerRef.current = worker;
+          setIsOcrReady(true);
+        }
+      } catch (err) {
+        console.error("عطل في تهيئة المحرك مسبقاً:", err);
+      }
+    }
+    initOcr();
+
+    return () => {
+      if (tesseractWorkerRef.current) {
+        tesseractWorkerRef.current.terminate();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (contractForm.startDate && contractForm.endDate) {
@@ -140,29 +166,30 @@ function App() {
     reader.readAsDataURL(file);
   };
 
+  // 2. دالة القراءة الحية الديناميكية المباشرة السريعة والمحمية من التجميد
   const executeLocalOcrScan = async (base64Image) => {
     setIsLoadingAI(true);
     try {
-      if (!window.Tesseract) {
-        alert("محرك الفحص يستعد محلياً، يرجى المحاولة مرة أخرى.");
+      if (!tesseractWorkerRef.current) {
+        alert("المحرك الذكي ما زال يستعد في الخلفية، انتظر ثانيتين وارفع الصورة مجدداً.");
         setIsLoadingAI(false);
         return;
       }
 
-      const result = await window.Tesseract.recognize(base64Image, 'eng+fra');
-      let text = result.data.text ? result.data.text.toUpperCase() : "";
+      const { data: { text } } = await tesseractWorkerRef.current.recognize(base64Image);
+      let rawText = text ? text.toUpperCase() : "";
 
       let cleanLicense = "";
       let cleanName = "";
       let cleanBirth = "";
       let cleanIssue = "";
 
-      const numMatches = text.match(/\b\d{5,18}\b/g);
+      const numMatches = rawText.match(/\b\d{5,18}\b/g);
       if (numMatches && numMatches.length > 0) {
         cleanLicense = numMatches[0];
       }
 
-      const lines = text.split('\n');
+      const lines = rawText.split('\n');
       const standardKeywords = ["MINISTERE", "PERMIS", "REPUBLIQUE", "CONDUITE", "ALGERIENNE", "DEMOCRATIQUE", "DRIVING", "LICENSE", "ROUTIERE"];
 
       for (let line of lines) {
@@ -195,7 +222,7 @@ function App() {
       }));
 
     } catch (err) {
-      console.error("عطل بالمعالجة الحية:", err);
+      console.error("عطل بالمعالجة الحية لـ Tesseract:", err);
     } finally {
       setIsLoadingAI(false);
     }
@@ -228,11 +255,12 @@ function App() {
       dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR')
     });
 
+    // مهلة الطباعة المحمية للأيباد لمنع خروج الورق الأبيض
     setTimeout(() => { 
       window.print(); 
       setPrintedContract(null); 
       setActiveTab('dashboard'); 
-    }, 2500);
+    }, 2000);
   };
 
   const getExpiryBadge = (expiryStr, type = "date") => {
@@ -257,6 +285,7 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
+      {/* ستايل العزل التام والمطلق الموجه لإجبار محركات الطباعة على الـ iPad على إظهار الصفحات واللوقو المائي */}
       <style dangerouslySetInnerHTML={{__html: `
         @media screen {
           .print-only-layout { display: none !important; }
@@ -269,7 +298,7 @@ function App() {
             margin: 0 !important; padding: 0 !important; width: 100% !important; height: auto !important;
           }
           .screen-only-layout, .no-print { display: none !important; }
-          .print-only-layout { display: block !important; }
+          .print-only-layout { display: block !important; width: 100% !important; }
           
           .print-page {
             display: block !important; box-sizing: border-box !important; page-break-after: always !important;
@@ -330,12 +359,12 @@ function App() {
         </header>
 
         <div style={styles.apiConfigurationZone}>
-          <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '14px' }}>
-            🔒 تم التحديث والرفع السحابي؛ معمارية العرض المكتملة مستقرة وجاهزة للعمل على الـ iPad!
+          <span style={{ color: isOcrReady ? '#166534' : '#b91c1c', fontWeight: 'bold', fontSize: '14px' }}>
+            {isOcrReady ? "✅ تم تشغيل الـ Worker وتجهيز محرك الذكاء الاصطناعي مسبقاً للوكالة!" : "⏳ جاري إيقاظ وتدريب المحرك الداخلي للطباعة والمسح الفوري..."}
           </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص نصوص ورخصة السياقة تلقائياً...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص نصوص وثيقة الرخصة حياً عبر الـ Worker النشط...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -363,7 +392,7 @@ function App() {
                   <div style={styles.inputGroup}><label>الموديل:</label><input type="text" required value={newCarForm.model} onChange={e=>setNewCarForm({...newCarForm, model:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>رقم اللوحة:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>العداد الحالي (كم):</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>تاريخ انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarDate, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>عداد تغيير الزيت القادم:</label><input type="number" required value={newCarForm.oilChangeMileage} onChange={e=>setNewCarForm({...newCarForm, oilChangeMileage:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>موعد المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalControlDate} onChange={e=>setNewCarForm({...newCarForm, technicalControlDate:e.target.value})} style={styles.input}/></div>
                   <button type="submit" style={styles.saveCarBtn}>💾 حفظ وإضافة السيارة</button>
