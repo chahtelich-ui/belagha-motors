@@ -123,7 +123,7 @@ function App() {
     const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-    if (cameraMode === 'license') { setTenantPhoto(null); setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
+    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     setCameraMode(null);
   };
@@ -144,7 +144,7 @@ function App() {
     setIsLoadingAI(true);
     try {
       if (!window.Tesseract) {
-        alert("المحرك الذكي يستعد محلياً، يرجى المحاولة مرة أخرى.");
+        alert("محرك الفحص يستعد محلياً، يرجى المحاولة مرة أخرى.");
         setIsLoadingAI(false);
         return;
       }
@@ -179,7 +179,6 @@ function App() {
 
         let alphabeticalClean = trimmed.replace(/[^A-Z\s\-]/g, "").trim();
         if (alphabeticalClean.length > 6 && !cleanName) {
-          // تم إصلاح السنتاكس وإغلاق الشرط بشكل سليم 100% لمنع عطل الـ Build
           const isForbidden = standardKeywords.some((keyword) => alphabeticalClean.includes(keyword));
           if (!isForbidden) {
             cleanName = alphabeticalClean;
@@ -233,7 +232,7 @@ function App() {
       window.print(); 
       setPrintedContract(null); 
       setActiveTab('dashboard'); 
-    }, 2000);
+    }, 2500);
   };
 
   const getExpiryBadge = (expiryStr, type = "date") => {
@@ -258,7 +257,6 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* تصميم واجهة الـ AirPrint للأيباد واللوحات مع حماية الطباعة بالمليمتر والعلامة المائية الشفافة */}
       <style dangerouslySetInnerHTML={{__html: `
         @media screen {
           .print-only-layout { display: none !important; }
@@ -271,7 +269,7 @@ function App() {
             margin: 0 !important; padding: 0 !important; width: 100% !important; height: auto !important;
           }
           .screen-only-layout, .no-print { display: none !important; }
-          .print-only-layout { display: block !important; width: 100% !important; }
+          .print-only-layout { display: block !important; }
           
           .print-page {
             display: block !important; box-sizing: border-box !important; page-break-after: always !important;
@@ -333,11 +331,11 @@ function App() {
 
         <div style={styles.apiConfigurationZone}>
           <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '14px' }}>
-            🔒 تم التطهير البرمجي وتأمين أكواد الـ Build أونلاين على السيرفر المباشر بنجاح!
+            🔒 تم التحديث والرفع السحابي؛ معمارية العرض المكتملة مستقرة وجاهزة للعمل على الـ iPad!
           </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص نصوص وبيانات الرخصة ديناميكياً...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص نصوص ورخصة السياقة تلقائياً...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -365,7 +363,7 @@ function App() {
                   <div style={styles.inputGroup}><label>الموديل:</label><input type="text" required value={newCarForm.model} onChange={e=>setNewCarForm({...newCarForm, model:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>رقم اللوحة:</label><input type="text" required value={newCarForm.plateNumber} onChange={e=>setNewCarForm({...newCarForm, plateNumber:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>العداد الحالي (كم):</label><input type="number" required value={newCarForm.currentMileage} onChange={e=>setNewCarForm({...newCarForm, currentMileage:e.target.value})} style={styles.input}/></div>
-                  <div style={styles.inputGroup}><label>تاريخ انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarForm, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
+                  <div style={styles.inputGroup}><label>تاريخ انتهاء التأمين:</label><input type="date" required value={newCarForm.insuranceExpiryDate} onChange={e=>setNewCarForm({...newCarDate, insuranceExpiryDate:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>عداد تغيير الزيت القادم:</label><input type="number" required value={newCarForm.oilChangeMileage} onChange={e=>setNewCarForm({...newCarForm, oilChangeMileage:e.target.value})} style={styles.input}/></div>
                   <div style={styles.inputGroup}><label>موعد المراقبة التقنية:</label><input type="date" required value={newCarForm.technicalControlDate} onChange={e=>setNewCarForm({...newCarForm, technicalControlDate:e.target.value})} style={styles.input}/></div>
                   <button type="submit" style={styles.saveCarBtn}>💾 حفظ وإضافة السيارة</button>
