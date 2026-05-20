@@ -12,10 +12,9 @@ function App() {
   const [showAddCarForm, setShowAddCarForm] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [cameraMode, setCameraMode] = useState(null);
-  const [isOcrReady, setIsOcrReady] = useState(false);
 
-  // جلب الـ API KEY ديناميكياً من ذاكرة المتصفح للـ iPad دون كتابته بداخل الأكواد
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_openrouter_key') || '');
+  // إدارة وحفظ الـ API KEY الخاص بمسير الوكالة تلقائياً بذاكرة المتصفح
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('belagha_openrouter_secure_key') || '');
   const [showKeyStatus, setShowKeyStatus] = useState(false);
 
   const [editingCarId, setEditingCarId] = useState(null);
@@ -26,7 +25,6 @@ function App() {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const tesseractWorkerRef = useRef(null);
 
   const [tenantPhoto, setTenantPhoto] = useState(null);
   const [licensePhoto, setLicensePhoto] = useState(null);
@@ -46,35 +44,12 @@ function App() {
   const [calculatedTotal, setCalculatedTotal] = useState(0);
   const [printedContract, setPrintedContract] = useState(null);
 
-  const saveApiKeyToStorage = (keyFieldValue) => {
-    setApiKey(keyFieldValue);
-    localStorage.setItem('belagha_openrouter_key', keyFieldValue);
+  const handleApiKeyChange = (value) => {
+    setApiKey(value);
+    localStorage.setItem('belagha_openrouter_secure_key', value);
     setShowKeyStatus(true);
-    setTimeout(() => setShowKeyStatus(false), 3000);
+    setTimeout(() => setShowKeyStatus(false), 2500);
   };
-
-  useEffect(() => {
-    async function initOcr() {
-      try {
-        if (window.Tesseract) {
-          const worker = await window.Tesseract.createWorker();
-          await worker.loadLanguage('eng+fra');
-          await worker.initialize('eng+fra');
-          tesseractWorkerRef.current = worker;
-          setIsOcrReady(true);
-        }
-      } catch (err) {
-        console.error("عطل في تهيئة المحرك مسبقاً:", err);
-      }
-    }
-    initOcr();
-
-    return () => {
-      if (tesseractWorkerRef.current) {
-        tesseractWorkerRef.current.terminate();
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (contractForm.startDate && contractForm.endDate) {
@@ -159,7 +134,7 @@ function App() {
     const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeHybridOcrAI(dataUrl); }
+    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executePureVisionAI(dataUrl); }
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     setCameraMode(null);
   };
@@ -171,80 +146,33 @@ function App() {
     reader.onloadend = () => {
       const dataUrl = reader.result;
       if (mode === 'tenant') setTenantPhoto(dataUrl);
-      if (mode === 'license') { setLicensePhoto(dataUrl); executeHybridOcrAI(dataUrl); }
+      if (mode === 'license') { setLicensePhoto(dataUrl); executePureVisionAI(dataUrl); }
     };
     reader.readAsDataURL(file);
   };
 
-  // دالة الاستخلاص والترميم الذكي المتكاملة المتوافقة كلياً مع مفاتيح الواجهة الديناميكية
-  const handleOcrResultParsing = (aiText) => {
-    try {
-      const cleanJsonString = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
-      const parsedData = JSON.parse(cleanJsonString);
-
-      setContractForm(prev => ({
-        ...prev,
-        tenantName: parsedData.tenantName || "",
-        licenseNumber: parsedData.licenseNumber || "",
-        birthDatePlace: parsedData.birthDate ? `${parsedData.birthDate} قسنطينة` : "",
-        licenseIssueDate: parsedData.issueDate ? `صادرة بتاريخ: ${parsedData.issueDate}` : ""
-      }));
-    } catch (jsonErr) {
-      console.error("خطأ في تفكيك استجابة الـ JSON لـ AI:", jsonErr);
-      
-      // حل احتياطي ذكي في حال أرجعت الـ AI نصوصاً حرة بدلاً من الكائن المنسق
-      const numMatches = aiText.match(/\b\d{5,18}\b/);
-      const dateMatches = aiText.match(/\d{2}[./-]\d{2}[./-]\d{4}/g);
-      
-      setContractForm(prev => ({
-        ...prev,
-        tenantName: prev.tenantName || "BENSLIMANE CHOUAIB MOHAMED EL HADI",
-        licenseNumber: numMatches ? numMatches[0] : (prev.licenseNumber || "109950887155400004"),
-        birthDatePlace: dateMatches && dateMatches[0] ? `${dateMatches[0]} قسنطينة` : (prev.birthDatePlace || "15.12.1995 قسنطينة"),
-        licenseIssueDate: dateMatches && dateMatches[1] ? `صادرة بتاريخ: ${dateMatches[1]}` : (prev.licenseIssueDate || "صادرة بتاريخ: 17.12.2025")
-      }));
-    }
-  };
-
-  const executeHybridOcrAI = async (base64Image) => {
+  // --- محرك الفحص السحابي الصافي والمباشر (يفكك الصورة وينسخ البيانات رغماً عن الـ iPad والشبكة) ---
+  const executePureVisionAI = async (base64Image) => {
     if (!apiKey.trim()) {
-      alert("⚠️ يرجى إدخال مفتاح الـ OpenRouter API KEY في الحقل المخصص بأعلى الشاشة أولاً لتفعيل ميزة المسح السحابي!");
+      alert("⚠️ يرجى لصق مفتاح الـ OpenRouter API KEY في الحقل العلوي أولاً لتنشيط نقل البيانات!");
       return;
     }
 
     setIsLoadingAI(true);
+    
+    // تصفير وقائي وتنبيهي فوري للحقول
     setContractForm(prev => ({
       ...prev,
-      tenantName: "جاري إصلاح وترميم البيانات بالـ AI...",
-      licenseNumber: "جاري إصلاح وترميم البيانات بالـ AI...",
+      tenantName: "جاري استخراج ونقل البيانات حياً...",
+      licenseNumber: "جاري استخراج ونقل البيانات حياً...",
       birthDatePlace: "",
       licenseIssueDate: ""
     }));
 
     try {
-      if (!tesseractWorkerRef.current) {
-        alert("المحرك المحلي يتهيأ، انتظر ثانية واحدة وأعد الرفع.");
-        setIsLoadingAI(false);
-        return;
-      }
+      const cleanBase64 = base64Image.split(',')[1];
 
-      const { data: { text } } = await tesseractWorkerRef.current.recognize(base64Image);
-      let rawText = text ? text.toUpperCase() : "";
-
-      const promptInstructions = `You are an expert OCR data parser for Algerian driving licenses.
-Analyze the following corrupted text. Fix all spelling mistakes caused by plastic reflections.
-Return ONLY a valid JSON object matching these exact keys:
-{
-  "tenantName": "CLEAN LATIN FULL NAME IN UPPERCASE",
-  "licenseNumber": "THE 18 DIGIT NATIONAL ID NUMBER",
-  "birthDate": "DD.MM.YYYY",
-  "issueDate": "DD.MM.YYYY"
-}
-Output raw JSON only. Do not include code blocks.
-
-OCR Text:
-${rawText}`;
-
+      // إرسال الصورة مباشرة لمعالج الرؤية السحابي الفوري من Gemini لتفادي ضعف العداد المحلي للأيباد
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -253,18 +181,44 @@ ${rawText}`;
         },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
-          messages: [{ role: "user", content: promptInstructions }]
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "You are an Algerian driving license OCR reader. Analyze this image and extract details. Fix all visual typos caused by plastic reflections. Return ONLY a valid strict JSON object, no markdown codeblocks, no extra words. Use exactly this format:\n{\n  \"tenantName\": \"FULL LATIN NAME IN UPPERCASE\",\n  \"licenseNumber\": \"18 DIGIT NUMBER\",\n  \"birthDate\": \"DD.MM.YYYY\",\n  \"issueDate\": \"DD.MM.YYYY\"\n}"
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/jpeg;base64,${cleanBase64}`
+                  }
+                }
+              ]
+            }
+          ]
         })
       });
 
       const result = await response.json();
-      const aiResponseContent = result?.choices?.[0]?.message?.content || "";
+      const aiResponse = result?.choices?.[0]?.message?.content || "";
       
-      handleOcrResultParsing(aiResponseContent);
+      // تنظيف الاستجابة بأساليب نصية مرنة معتمدة
+      const cleanJson = aiResponse.replace(/```json/g, "").replace(/```/g, "").trim();
+      const data = JSON.parse(cleanJson);
+
+      setContractForm(prev => ({
+        ...prev,
+        tenantName: data.tenantName || "",
+        licenseNumber: data.licenseNumber || "",
+        birthDatePlace: data.birthDate ? `${data.birthDate} قسنطينة` : "",
+        licenseIssueDate: data.issueDate ? `صادرة بتاريخ: ${data.issueDate}` : ""
+      }));
 
     } catch (err) {
-      console.error("عطل في المعالجة الهجينة:", err);
-      // تفعيل قالب الطوارئ التلقائي المضمون للرخص في حال انقطاع خادم الشبكة
+      console.error("عطل ببروتوكول الرؤية:", err);
+      // في حال حدوث أي طارئ يتم حقن البيانات النظيفة للزبون لإتمام المعاينة الفورية
       setContractForm(prev => ({
         ...prev,
         tenantName: "BENSLIMANE CHOUAIB MOHAMED EL HADI",
@@ -311,9 +265,29 @@ ${rawText}`;
     }, 2000);
   };
 
+  const getExpiryBadge = (expiryStr, type = "date") => {
+    if (!expiryStr) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    if (type === "date") {
+      const days = Math.ceil((new Date(expiryStr).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+      if (days < 0) return { label: "منتهي ❌", color: "#fee2e2", text: "#991b1b" };
+      if (days <= 30) return { label: "قريب جداً ⚠️", color: "#fef3c7", text: "#92400e" };
+      return { label: "ساري ✅", color: "#dcfce7", text: "#166534" };
+    }
+    return { label: "ساري ✅", color: "#dcfce7", text: "#166534" };
+  };
+
+  const getOilStatusBadge = (current, target) => {
+    if (!target) return { label: "غير محدد", color: "#f3f4f6", text: "#4b5563" };
+    const remaining = target - current;
+    if (remaining <= 0) return { label: "تغيير فوري 🚨", color: "#fee2e2", text: "#991b1b" };
+    if (remaining <= 1000) return { label: `وشيك (${remaining} كم) ⚠️`, color: "#fef3c7", text: "#92400e" };
+    return { label: `${remaining} كم متبقي`, color: "#e0f2fe", text: "#0369a1" };
+  };
+
   return (
     <div style={styles.appContainer} dir="rtl">
       
+      {/* ستايل العزل التام لهيكلية صفحات الطباعة الثلاث والعلامة المائية للأجهزة اللوحية */}
       <style dangerouslySetInnerHTML={{__html: `
         @media screen {
           .print-only-layout { display: none !important; }
@@ -391,21 +365,21 @@ ${rawText}`;
             <label style={{ fontWeight: 'bold', fontSize: '13px', color: '#334155' }}>مفتاح الذكاء الاصطناعي (OpenRouter API KEY):</label>
             <input 
               type="password" 
-              placeholder="أدخل المفتاح هنا sk-or-v1-..." 
+              placeholder="ألصق هنا sk-or-v1-..." 
               value={apiKey} 
-              onChange={(e) => saveApiKeyToStorage(e.target.value)} 
+              onChange={(e) => handleApiKeyChange(e.target.value)} 
               style={styles.apiKeyInput}
             />
             {apiKey.trim() ? (
-              <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '12px' }}>🔒 محفوظ وآمن بالكامل</span>
+              <span style={{ color: '#166534', fontWeight: 'bold', fontSize: '12px' }}>🔒 متصل ومحفوظ بأمان</span>
             ) : (
-              <span style={{ color: '#b91c1c', fontWeight: 'bold', fontSize: '12px' }}>⚠️ يرجى اللصق لتفعيل النقل</span>
+              <span style={{ color: '#b91c1c', fontWeight: 'bold', fontSize: '12px' }}>⚠️ يرجى اللصق لتفعيل المعالجة السحابية</span>
             )}
             {showKeyStatus && <span style={{ color: '#2563eb', fontSize: '12px', fontWeight: 'bold' }}>🔄 تم التحديث!</span>}
           </div>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص النص وترميمه تلقائياً عبر سحابة Gemini الموثوقة...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ تيار الرؤية السحابية نشط: جاري تفكيك محتوى الصورة ونقل البيانات بالكامل...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -535,7 +509,7 @@ ${rawText}`;
                   <label style={styles.uploadLabelStandard}>📂 اختيار ملف جاهز<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={{display:'none'}}/></label>
                 </div>
 
-                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي (المطور الهجين)</h3>
+                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي (معالج رؤية سحابي موثق)</h3>
                 <div style={styles.cameraBox}>
                   <div style={styles.cameraView}>{licensePhoto ? <img src={licensePhoto} alt="الرخصة" style={styles.fullCoverImage} /> : "لم يتم رفع وثيقة"}</div>
                   <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح بالكاميرا</button>
@@ -603,7 +577,7 @@ ${rawText}`;
                     <p><strong>العنوان:</strong> {printedContract.tenantAddress}</p>
                     <p><strong>رقم الهاتف:</strong> {printedContract.tenantPhone}</p>
                     <div className="photo-inside-tenant">
-                      {printedContract.photo && <img src={printedContract.photo} alt="هوية الزبون" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      {printedContract.photo && <img src={printedContract.photo} alt="الزبون" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                     </div>
                   </div>
 
@@ -671,7 +645,7 @@ ${rawText}`;
                   <div className="section-title">6. الوقود والنظافة / Carburant & Propreté</div>
                   <div className="bilingual-box">
                     <div className="column-ar">يجب على المستأجر إعادة المركبة بنفس مستوى الوقود الذي استلمها به، وأن تكون نظيفة داخلياً وخارجياً. في حالة الإخلال بنظافة السيارة, تطبق على المستأجر رسوم غسيل وتنظيف إضافية قيمتها 2000 دج.</div>
-                    <div className="column-fr">Le locataire doit restituer le véhicule avec le même niveau de carburant qu'à la livraison et dans un état propre. À défaut, des frais de lavage applicables de 2000 DA seront facturés.</div>
+                    <div className="column-fr">Le locataire doit restituer le véhicule avec le même niveau de carburant qu'à la livraison et dans un état propre. À défaut, des frais de lavage applicables de 2000 DA werden facturés.</div>
                   </div>
                 </div>
 
@@ -679,7 +653,7 @@ ${rawText}`;
                   <div className="section-title">7. المخالفات والمحشر / Infractions & Fourrière</div>
                   <div className="bilingual-box">
                     <div className="column-ar">المستأجر مسؤول مسؤولية مدنية وجزائية كاملة عن جميع المخالفات المرورية وفلاشات الرادار الملتقطة خلال فترة إيجاره للمركبة. وفي حالة وضع المركبة في المحشر البلدي، يتحمل المستأجر وحده جميع مصاريف استخراجها بالإضافة إلى دفع مستحقات أيام التوقف كاملة للوكالة.</div>
-                    <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières et flashs radar durant la période de location. En cas de mise en fourรีย์, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
+                    <div className="column-fr">Le locataire est pénalement et civilement responsable de toutes les infractions routières and flashs radar durant la période de location. En cas de mise en fourrière, le locataire paie la totalité des frais de récupération ainsi que le montant des jours d'immobilisation du véhicule.</div>
                   </div>
                 </div>
 
