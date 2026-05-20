@@ -22,7 +22,7 @@ function App() {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const tesseractWorkerRef = useRef(null); // مرجع ثابت لحفظ المحرك مستيقظاً
+  const tesseractWorkerRef = useRef(null);
 
   const [tenantPhoto, setTenantPhoto] = useState(null);
   const [licensePhoto, setLicensePhoto] = useState(null);
@@ -42,12 +42,15 @@ function App() {
   const [calculatedTotal, setCalculatedTotal] = useState(0);
   const [printedContract, setPrintedContract] = useState(null);
 
-  // 1. تشغيل وتدريب محرك Tesseract مسبقاً فور فتح التطبيق لحل مشكلة الـ iPad والبطء
+  // تهيئة المحرك مسبقاً مع تصفير الـ Cache
   useEffect(() => {
     async function initOcr() {
       try {
         if (window.Tesseract) {
-          const worker = await window.Tesseract.createWorker();
+          const worker = await window.Tesseract.createWorker({
+            cacheMethod: 'none', // منع المتصفح من حفظ الكاش القديم للبيانات
+            logger: m => console.log(m)
+          });
           await worker.loadLanguage('eng+fra');
           await worker.initialize('eng+fra');
           tesseractWorkerRef.current = worker;
@@ -149,7 +152,10 @@ function App() {
     const dataUrl = canvas.toDataUrl('image/jpeg', 0.85);
 
     if (cameraMode === 'tenant') setTenantPhoto(dataUrl);
-    if (cameraMode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
+    if (cameraMode === 'license') { 
+      setLicensePhoto(dataUrl); 
+      executeLocalOcrScan(dataUrl); 
+    }
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     setCameraMode(null);
   };
@@ -161,14 +167,27 @@ function App() {
     reader.onloadend = () => {
       const dataUrl = reader.result;
       if (mode === 'tenant') setTenantPhoto(dataUrl);
-      if (mode === 'license') { setLicensePhoto(dataUrl); executeLocalOcrScan(dataUrl); }
+      if (mode === 'license') { 
+        setLicensePhoto(dataUrl); 
+        executeLocalOcrScan(dataUrl); 
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  // 2. دالة القراءة الحية الديناميكية المباشرة السريعة والمحمية من التجميد
+  // دالة المسح الذكي بعد التصفير الإجباري والكامل لمنع تداخل البيانات القديمة
   const executeLocalOcrScan = async (base64Image) => {
     setIsLoadingAI(true);
+    
+    // خطوة ذهبية: تصفير حقول المستأجر فوراً لمنع بقاء أي بيانات قديمة على الشاشة
+    setContractForm(prev => ({
+      ...prev,
+      tenantName: "جاري القراءة...",
+      licenseNumber: "جاري القراءة...",
+      birthDatePlace: "",
+      licenseIssueDate: ""
+    }));
+
     try {
       if (!tesseractWorkerRef.current) {
         alert("المحرك الذكي ما زال يستعد في الخلفية، انتظر ثانيتين وارفع الصورة مجدداً.");
@@ -213,6 +232,7 @@ function App() {
         }
       }
 
+      // تحديث الحقول بالقيم الجديدة النظيفة فقط، وإذا كانت فارغة يتم تركها للمستخدم ليكتبها بنفسه
       setContractForm(prev => ({
         ...prev,
         tenantName: cleanName || "",
@@ -223,6 +243,14 @@ function App() {
 
     } catch (err) {
       console.error("عطل بالمعالجة الحية لـ Tesseract:", err);
+      // في حال حدوث خطأ، نقوم بتنظيف خانات النص حتى لا تبقى معلقة
+      setContractForm(prev => ({
+        ...prev,
+        tenantName: "",
+        licenseNumber: "",
+        birthDatePlace: "",
+        licenseIssueDate: ""
+      }));
     } finally {
       setIsLoadingAI(false);
     }
@@ -255,7 +283,6 @@ function App() {
       dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR')
     });
 
-    // مهلة الطباعة المحمية للأيباد لمنع خروج الورق الأبيض
     setTimeout(() => { 
       window.print(); 
       setPrintedContract(null); 
@@ -285,7 +312,6 @@ function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* ستايل العزل التام والمطلق الموجه لإجبار محركات الطباعة على الـ iPad على إظهار الصفحات واللوقو المائي */}
       <style dangerouslySetInnerHTML={{__html: `
         @media screen {
           .print-only-layout { display: none !important; }
@@ -360,11 +386,11 @@ function App() {
 
         <div style={styles.apiConfigurationZone}>
           <span style={{ color: isOcrReady ? '#166534' : '#b91c1c', fontWeight: 'bold', fontSize: '14px' }}>
-            {isOcrReady ? "✅ تم تشغيل الـ Worker وتجهيز محرك الذكاء الاصطناعي مسبقاً للوكالة!" : "⏳ جاري إيقاظ وتدريب المحرك الداخلي للطباعة والمسح الفوري..."}
+            {isOcrReady ? "✅ تم تنشيط محرك المسح الفوري المحدث وحماية الذاكرة من الكاش المؤقت!" : "⏳ جاري إيقاظ وتدريب المحرك الداخلي للطباعة والمسح الفوري..."}
           </span>
         </div>
 
-        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري استخلاص نصوص وثيقة الرخصة حياً عبر الـ Worker النشط...</div>}
+        {isLoadingAI && <div style={styles.loadingBanner}>⏳ جاري تنظيف الحقول القديمة واستخلاص نصوص الوثيقة الجديدة حياً...</div>}
 
         {cameraMode && (
           <div style={styles.cameraOverlay}>
@@ -494,11 +520,12 @@ function App() {
                   <label style={styles.uploadLabelStandard}>📂 اختيار ملف جاهز<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'tenant')} style={{display:'none'}}/></label>
                 </div>
 
-                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي المباشر</h3>
+                <h3 style={{marginTop:'20px'}}>2. قراءة رخصة السياقة بالذكاء الاصطناعي (محدث ومحمي)</h3>
                 <div style={styles.cameraBox}>
                   <div style={styles.cameraView}>{licensePhoto ? <img src={licensePhoto} alt="الرخصة" style={styles.fullCoverImage} /> : "لم يتم رفع وثيقة"}</div>
                   <button type="button" onClick={() => startCamera('license')} style={styles.cameraBtn}>⚡ مسح بالكاميرا</button>
-                  <label style={styles.uploadLabelBlue}>📂 رفع ملف الرخصة<input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'license')} style={{display:'none'}}/></label>
+                  <label style={styles.uploadLabelBlue}>📂 رفع ملف الرخصة الجديد</label>
+                  <input type="file" accept="image/*" onClick={(e) => { e.target.value = null }} onChange={(e) => handleFileUpload(e, 'license')} style={{display:'none'}} id="license-file-input"/>
                 </div>
 
                 <div style={styles.formGrid}>
@@ -539,7 +566,7 @@ function App() {
       <div className="print-only-layout">
           {printedContract && (
             <>
-              {/* الصفحة الأولى */}
+              {/* الورقة 1 */}
               <div className="print-page">
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid black', paddingBottom: '12px', alignItems: 'center' }}>
                   <div style={{ textAlign: 'right', fontSize: '12px', color: 'black' }}>
@@ -597,7 +624,7 @@ function App() {
                 <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>1/3</div>
               </div>
 
-              {/* الصفحة الثانية */}
+              {/* الورقة 2 */}
               <div className="print-page">
                 <div className="document-title">تتمة الالتزامات والشروط القانونية (الجزء الثاني) / CONDITIONS GÉNÉRALES</div>
 
@@ -659,7 +686,7 @@ function App() {
                 <div style={{ position: 'absolute', bottom: '15px', left: '0', right: '0', textAlign: 'center', fontWeight: 'bold' }}>2/3</div>
               </div>
 
-              {/* الصفحة الثالثة */}
+              {/* الورقة 3 */}
               <div className="print-page">
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', textAlign: 'center' }}>
                   <div style={{ fontWeight: 'bold', fontSize: '18px' }}>BELAGHA MOTORS FINANCE</div>
@@ -726,7 +753,7 @@ const styles = {
   fullCoverImage: { width: '100%', height: '100%', objectFit: 'cover' },
   cameraBtn: { backgroundColor: '#7c3aed', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' },
   uploadLabelStandard: { backgroundColor: '#4b5563', color: 'white', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' },
-  uploadLabelBlue: { backgroundColor: '#0284c7', color: 'white', padding: '8px 14px', cursor: 'pointer', display: 'inline-block', fontWeight: 'bold', fontSize: '13px' },
+  uploadLabelBlue: { backgroundColor: '#0284c7', color: 'white', padding: '8px 14px', cursor: 'pointer', display: 'inline-block', fontWeight: 'bold', fontSize: '13px', borderRadius: '4px' },
   formCard: { backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' },
   formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '10px' },
   formGridCombined: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', borderTop: '1px dashed #e5e7eb', paddingTop: '15px', marginTop: '15px' },
