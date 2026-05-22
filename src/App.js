@@ -41,7 +41,6 @@ export default function App() {
     }
   }, [contractForm.startDate, contractForm.endDate, contractForm.pricePerDay]);
 
-  // --- محرك التصحيح المحلي الذكي (Algerian License Heuristics) ---
   const applySmartHeuristics = (rawText) => {
     let extractedName = "";
     let extractedLicense = "";
@@ -85,7 +84,6 @@ export default function App() {
     }));
   };
 
-  // --- محرك القراءة المحلي (Tesseract.js) ---
   const executeLocalOCR = async (imageSrc) => {
     setIsLoading(true);
     setOcrStatus('جاري تحميل المحرك المحلي...');
@@ -99,8 +97,7 @@ export default function App() {
       applySmartHeuristics(text);
       
     } catch (error) {
-      console.error(error);
-      alert("⚠️ حدث خطأ أثناء القراءة المحلية. يرجى إدخال البيانات يدوياً.");
+      alert("⚠️ حدث خطأ أثناء القراءة المحلية.");
     } finally {
       setIsLoading(false);
       setOcrStatus('');
@@ -152,12 +149,15 @@ export default function App() {
     if (!contractForm.selectedCarId) return alert("يرجى اختيار مركبة.");
     const targetCar = fleet.find(car => car.id === contractForm.selectedCarId);
     
-    // تحديث الأسطول وهمياً
     setFleet(fleet.map(car => car.id === contractForm.selectedCarId ? { ...car, status: 'rented' } : car));
 
     setPrintedContract({
-      ...contractForm, carDetails: targetCar, days: calculatedDays || 1, total: calculatedTotal, photo: tenantPhoto,
-      dateString: new Date().toLocaleDateString('fr-FR')
+      ...contractForm, 
+      carDetails: targetCar, 
+      days: calculatedDays || 1, 
+      total: calculatedTotal, 
+      photo: tenantPhoto,
+      dateString: new Date().toLocaleDateString('fr-FR') + ' ' + new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})
     });
     
     setTimeout(() => { window.print(); setPrintedContract(null); setActiveTab('dashboard'); }, 2000);
@@ -166,17 +166,46 @@ export default function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
+      {/* CSS الطباعة الأصلي الفخم المكون من 3 صفحات */}
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
         * { font-family: 'Tajawal', sans-serif; box-sizing: border-box; }
         @media screen { .print-only-layout { display: none !important; } .screen-only-layout { display: block !important; } }
+        
         @media print {
-          @page { size: A4 portrait; margin: 15mm; }
-          body, html, #root { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
-          .screen-only-layout { display: none !important; }
-          .print-only-layout { display: block !important; }
-          .print-page { display: block !important; page-break-after: always !important; page-break-inside: avoid !important; padding: 10px; }
+          @page { size: A4 portrait; margin: 10mm; }
+          body, html, #root { background: #fff !important; color: #000 !important; margin: 0 !important; padding: 0 !important; }
+          .screen-only-layout, .no-print { display: none !important; }
+          .print-only-layout { display: block !important; width: 100%; }
+          
+          .print-page { display: block !important; page-break-after: always !important; page-break-inside: avoid !important; position: relative !important; padding: 15px !important; min-height: 270mm; }
           .print-page:last-child { page-break-after: auto !important; }
+          
+          .doc-header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; align-items: center; }
+          .doc-header p { margin: 2px 0; font-size: 11px; font-weight: bold; }
+          .doc-title { text-align: center; margin: 10px 0 20px 0; font-size: 18px; text-decoration: underline; font-weight: 900; }
+          
+          .info-grid { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 15px; }
+          .info-box { width: 48%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; position: relative; }
+          .info-box h5 { margin: 0 0 8px 0; border-bottom: 1px solid #000; padding-bottom: 4px; font-size: 13px; }
+          .info-box p { margin: 5px 0; font-size: 12px; }
+          .tenant-photo-print { position: absolute; left: 10px; top: 30px; width: 75px; height: 95px; border: 1px solid #000; border-radius: 4px; object-fit: cover; }
+          
+          .terms-title { text-align: center; background: #1e293b !important; color: #fff !important; padding: 6px; font-size: 13px; border-radius: 4px; margin: 15px 0; -webkit-print-color-adjust: exact; }
+          .term-item { margin-bottom: 10px; page-break-inside: avoid; }
+          .term-header { background: #f1f5f9 !important; border-right: 4px solid #1e293b !important; padding: 4px 8px; font-size: 11px; font-weight: bold; margin-bottom: 4px; -webkit-print-color-adjust: exact; }
+          .term-body { display: flex; justify-content: space-between; font-size: 10px; line-height: 1.4; }
+          .term-ar { width: 48%; text-align: justify; }
+          .term-fr { width: 48%; text-align: justify; direction: ltr; border-left: 1px dashed #cbd5e1; padding-left: 8px; }
+          
+          .signatures { display: flex; justify-content: space-between; margin-top: 25px; page-break-inside: avoid; }
+          .sig-box { width: 45%; text-align: center; font-size: 12px; font-weight: bold; }
+          .sig-space { height: 80px; border: 1px solid #94a3b8; border-radius: 4px; margin-top: 8px; background: #f8fafc !important; -webkit-print-color-adjust: exact; }
+          
+          .receipt-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          .receipt-table td { border: 1px solid #000; padding: 10px; font-size: 13px; }
+          .receipt-table td.bg-gray { background: #f8fafc !important; font-weight: bold; width: 40%; -webkit-print-color-adjust: exact; }
+          .page-num { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: bold; }
         }
       `}} />
 
@@ -233,13 +262,13 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* تصحيح خطأ ستايل الـ Grid هنا لتفادي فشل البناء في Vercel */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'15px', marginTop:'20px'}}>
                   <div><label style={styles.label}>الاسم واللقب:</label><input required value={contractForm.tenantName} onChange={e=>setContractForm({...contractForm, tenantName: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>رقم الرخصة:</label><input required value={contractForm.licenseNumber} onChange={e=>setContractForm({...contractForm, licenseNumber: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>الميلاد:</label><input required value={contractForm.birthDatePlace} onChange={e=>setContractForm({...contractForm, birthDatePlace: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>الإصدار:</label><input required value={contractForm.licenseIssueDate} onChange={e=>setContractForm({...contractForm, licenseIssueDate: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>الهاتف:</label><input required value={contractForm.tenantPhone} onChange={e=>setContractForm({...contractForm, tenantPhone: e.target.value})} style={styles.inputField}/></div>
+                  <div><label style={styles.label}>العنوان:</label><input required value={contractForm.tenantAddress} onChange={e=>setContractForm({...contractForm, tenantAddress: e.target.value})} style={styles.inputField}/></div>
                   
                   <div>
                     <label style={styles.label}>المركبة:</label>
@@ -250,48 +279,164 @@ export default function App() {
                   </div>
                   <div><label style={styles.label}>الاستلام:</label><input type="datetime-local" required value={contractForm.startDate} onChange={e=>setContractForm({...contractForm, startDate: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>الإرجاع:</label><input type="datetime-local" required value={contractForm.endDate} onChange={e=>setContractForm({...contractForm, endDate: e.target.value})} style={styles.inputField}/></div>
+                  <div><label style={styles.label}>سعر اليوم (دج):</label><input type="number" required value={contractForm.pricePerDay} onChange={e=>setContractForm({...contractForm, pricePerDay: e.target.value})} style={styles.inputField}/></div>
+                  <div><label style={styles.label}>الضمان / Caution:</label><input type="number" required value={contractForm.caution} onChange={e=>setContractForm({...contractForm, caution: e.target.value})} style={styles.inputField}/></div>
+                  <div><label style={styles.label}>حالة الوقود:</label><input required value={contractForm.fuelStatus} onChange={e=>setContractForm({...contractForm, fuelStatus: e.target.value})} style={styles.inputField}/></div>
                 </div>
 
-                <button type="submit" style={styles.btnSubmitFinal}>💾 طباعة العقد (محلياً بالكامل)</button>
+                <div style={{background:'#ecfdf5', color:'#064e3b', padding:'15px', borderRadius:'8px', textAlign:'center', marginTop:'20px', fontWeight:'bold', border:'1px solid #10b981'}}>
+                  الإجمالي: {calculatedTotal} دج | المدة: {calculatedDays} يوم
+                </div>
+
+                <button type="submit" style={styles.btnSubmitFinal}>💾 طباعة العقد النهائي</button>
               </form>
             </div>
-          )}
-          
-          {activeTab === 'dashboard' && (
-             <div style={styles.card}><h2 style={{textAlign:'center'}}>إدارة الأسطول (تم إخفاؤها مؤقتاً للتركيز على العقد)</h2></div>
           )}
         </main>
       </div>
 
+      {/* ==============================================================
+          منطقة الطباعة الاحترافية (3 صفحات) المرجعة بالكامل
+      ============================================================== */}
       <div className="print-only-layout">
         {printedContract && (
-          <div className="print-page">
-            <h1 style={{textAlign:'center', fontSize:'24px', borderBottom:'2px solid #000', paddingBottom:'10px'}}>BELAGHA MOTORS - عقد كراء سيارة</h1>
-            <table style={{width:'100%', marginTop:'20px', borderCollapse: 'collapse'}}>
-              <tbody>
-                <tr>
-                  <td style={{width:'50%', border:'1px solid #000', padding:'15px', verticalAlign:'top'}}>
-                    <h3>1. المستأجر</h3>
-                    <p>الاسم: <strong>{printedContract.tenantName}</strong></p>
-                    <p>الرخصة: <strong>{printedContract.licenseNumber}</strong></p>
-                    <p>الميلاد: <strong>{printedContract.birthDatePlace}</strong></p>
-                    {printedContract.photo && <img src={printedContract.photo} style={{width:'100px', height:'120px', border:'1px solid #000', marginTop:'10px'}} alt="الزبون" />}
-                  </td>
-                  <td style={{width:'50%', border:'1px solid #000', padding:'15px', verticalAlign:'top'}}>
-                    <h3>2. المركبة</h3>
-                    <p>السيارة: <strong>{printedContract.carDetails?.brand} {printedContract.carDetails?.model}</strong></p>
-                    <p>الاستلام: <strong>{printedContract.startDate}</strong></p>
-                    <p>الإرجاع: <strong>{printedContract.endDate}</strong></p>
-                    <p>الإجمالي: <strong>{printedContract.total} دج</strong></p>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{marginTop:'50px', display:'flex', justifyContent:'space-around', fontWeight:'bold'}}>
-              <div>توقيع المستأجر<br/><br/><br/>...................</div>
-              <div>ختم الوكالة<br/><br/><br/>...................</div>
+          <>
+            {/* الصفحة الأولى: العقد */}
+            <div className="print-page">
+              <div className="doc-header">
+                <div><h1 style={{margin:0, fontSize:'22px', fontWeight:'900'}}>BELAGHA MOTORS</h1><p>LOCATION DE VOITURES</p></div>
+                <div style={{textAlign:'right'}}>
+                  <p>📍 Constantine, Algérie</p><p>📞 0554 28 19 83</p><p>RC: 25/00-038169 A 15 | NIF: 1852501093731100000</p>
+                </div>
+              </div>
+              
+              <h2 className="doc-title">عقد كراء سيارة / CONTRAT DE LOCATION</h2>
+              
+              <div className="info-grid">
+                <div className="info-box" style={{paddingLeft: '95px'}}>
+                  <h5>1. معلومات المستأجر / Locataire</h5>
+                  <p><strong>الاسم واللقب:</strong> {printedContract.tenantName}</p>
+                  <p><strong>تاريخ ومكان الميلاد:</strong> {printedContract.birthDatePlace}</p>
+                  <p><strong>رقم الرخصة:</strong> {printedContract.licenseNumber}</p>
+                  <p><strong>صادرة في:</strong> {printedContract.licenseIssueDate}</p>
+                  <p><strong>العنوان:</strong> {printedContract.tenantAddress}</p>
+                  <p><strong>رقم الهاتف:</strong> {printedContract.tenantPhone}</p>
+                  {printedContract.photo && <img src={printedContract.photo} className="tenant-photo-print" alt="الزبون" />}
+                </div>
+                <div className="info-box">
+                  <h5>2. معلومات السيارة / Véhicule</h5>
+                  <p><strong>النوع والموديل:</strong> {printedContract.carDetails?.brand} {printedContract.carDetails?.model}</p>
+                  <p><strong>اللوحة المنجمية:</strong> {printedContract.carDetails?.plateNumber}</p>
+                  <p><strong>العداد الحالي:</strong> {printedContract.carDetails?.currentMileage} كم</p>
+                  <p><strong>تاريخ الاستلام:</strong> {printedContract.startDate}</p>
+                  <p><strong>تاريخ الإرجاع:</strong> {printedContract.endDate}</p>
+                  <p><strong>السعر لليوم:</strong> {printedContract.pricePerDay} دج | <strong>المدة:</strong> {printedContract.days} يوم</p>
+                  <p><strong>الضمان (Caution):</strong> {printedContract.caution} دج | <strong>الوقود:</strong> {printedContract.fuelStatus}</p>
+                  <p><strong>المبلغ الإجمالي:</strong> {printedContract.total} دج</p>
+                </div>
+              </div>
+
+              <div className="terms-title">الشروط القانونية والتزامات المستأجر / Conditions Générales (1/2)</div>
+              
+              <div className="term-item">
+                <div className="term-header">1. حالة السيارة والحوادث / État du Véhicule & Accidents</div>
+                <div className="term-body">
+                  <div className="term-ar">المستأجر يقر أنه استأجر السيارة في حالة جيدة. في حالة وقوع حادث أو تحطم المستأجر ملزم بدفع تكاليف الإصلاح نقداً وفوراً. في حال التضرر الكبير يدفع ثمن السيارة بالكامل.</div>
+                  <div className="term-fr">Le locataire reconnaît avoir loué le véhicule en bon état. En cas d'accident, le locataire paie les frais de réparation en espèces. Si majeur, la valeur totale.</div>
+                </div>
+              </div>
+
+              <div className="term-item">
+                <div className="term-header">2. القيادة / Conduite</div>
+                <div className="term-body">
+                  <div className="term-ar">لا يسمح بكراء السيارة للغير أو قيادتها إلا لمن حرر العقد باسمه. يحق للوكالة استرجاع السيارة دون أي تعويض. لا يسمح بوجود السيارة خارج التراب الوطني.</div>
+                  <div className="term-fr">La sous-location ou la conduite par une tierce personne est interdite. L'agence peut récupérer le véhicule sans remboursement. Il est strictement interdit de sortir du territoire national.</div>
+                </div>
+              </div>
+
+              <div className="term-item">
+                <div className="term-header">3. التأخير في الإرجاع / Retard de Restitution</div>
+                <div className="term-body">
+                  <div className="term-ar">أي تأخير عن موعد إرجاع السيارة يلزم المستأجر بدفع 1500 دج للساعة الواحدة.</div>
+                  <div className="term-fr">Tout retard dans la restitution entraîne une pénalité de 1500 DA par heure.</div>
+                </div>
+              </div>
+
+              <div className="page-num">1 / 3</div>
             </div>
-          </div>
+
+            {/* الصفحة الثانية: الشروط */}
+            <div className="print-page">
+              <div className="doc-header"><h1 style={{margin:0, fontSize:'18px'}}>BELAGHA MOTORS</h1><p>21/04/2026</p></div>
+              <div className="terms-title">تتمة الالتزامات والشروط القانونية / Conditions Générales (2/2)</div>
+
+              <div className="term-item">
+                <div className="term-header">4. السرقة أو الضياع / Perte ou Vol</div>
+                <div className="term-body">
+                  <div className="term-ar">في حالة ضياع أو سرقة السيارة، تقع المسؤولية كاملة على المستأجر وهو ملزم بدفع 100% من ثمنها.</div>
+                  <div className="term-fr">En cas de perte ou vol, le locataire est responsable et doit payer 100% de la valeur du véhicule.</div>
+                </div>
+              </div>
+
+              <div className="term-item">
+                <div className="term-header">5. وثائق ومواقيت العمل / Documents & Heures</div>
+                <div className="term-body">
+                  <div className="term-ar">البطاقة الرمادية الأصلية لا تسلم للزبون. أوقات العمل: 08:00 صباحاً إلى 18:00 مساء.</div>
+                  <div className="term-fr">La carte grise originale n'est pas remise. Heures de travail: (08:00 à 18:00).</div>
+                </div>
+              </div>
+
+              <div className="term-item">
+                <div className="term-header">6. الوقود والنظافة / Carburant & Propreté</div>
+                <div className="term-body">
+                  <div className="term-ar">إرجاع السيارة بنفس مستوى الوقود وبحالة نظيفة. وإلا يدفع رسوم غسيل (مثال: 2000 دج).</div>
+                  <div className="term-fr">Restituer avec le même niveau de carburant et propre. Sinon, frais de lavage applicables.</div>
+                </div>
+              </div>
+
+              <div className="term-item">
+                <div className="term-header">7. المخالفات والمحشر / Infractions & Fourrière</div>
+                <div className="term-body">
+                  <div className="term-ar">المستأجر مسؤول مدنياً وجزائياً عن جميع المخالفات وتصوير الرادار خلال فترة الكراء. في حال وضع السيارة في المحشر، يتحمل المستأجر تكاليف استخراجها وثمن أيام توقفها.</div>
+                  <div className="term-fr">Le locataire est responsable de toutes les infractions et flashs radar. En cas de mise en fourrière, le locataire paie les frais de récupération et les jours.</div>
+                </div>
+              </div>
+
+              <div style={{background:'#f8fafc', padding:'10px', border:'1px dashed #cbd5e1', borderRadius:'4px', fontSize:'11px', marginTop:'15px', textAlign:'center'}}>
+                <strong>إقرار وقبول المستأجر:</strong> يقر المستأجر بأنه قد اطلع على كافة الشروط والالتزامات الواردة أعلاه باللغتين العربية والفرنسية، ويوافق عليها موافقة تامة (مسبوق بعبارة قرأت ووافقت / Lu et approuvé).
+              </div>
+
+              <div className="signatures">
+                <div className="sig-box">توقيع المستأجر / Signature<div className="sig-space"></div></div>
+                <div className="sig-box">ختم وتوقيع الوكالة / Cachet<div className="sig-space"></div></div>
+              </div>
+              <div className="page-num">2 / 3</div>
+            </div>
+
+            {/* الصفحة الثالثة: الوصل المالي */}
+            <div className="print-page">
+              <div className="doc-header" style={{textAlign:'center', display:'block', borderBottom:'none'}}>
+                <h1 style={{margin:0, fontSize:'24px', fontWeight:'900'}}>BELAGHA MOTORS FINANCE</h1>
+                <p style={{margin:'5px 0', fontSize:'12px'}}>QUITTANCE DE PAIEMENT / وصل استلام مالي</p>
+              </div>
+
+              <table className="receipt-table" style={{marginTop:'40px'}}>
+                <tbody>
+                  <tr><td className="bg-gray">التاريخ والوقت / Date</td><td>{printedContract.dateString}</td></tr>
+                  <tr><td className="bg-gray">استلمنا من السيد(ة) / Client</td><td>{printedContract.tenantName}</td></tr>
+                  <tr><td className="bg-gray">السيارة / Véhicule</td><td>{printedContract.carDetails?.brand} {printedContract.carDetails?.model} ({printedContract.carDetails?.plateNumber})</td></tr>
+                  <tr><td className="bg-gray">الضمان (Caution)</td><td>{printedContract.caution} دج</td></tr>
+                  <tr><td className="bg-gray" style={{fontSize:'16px', color:'#1e3a8a'}}>مبلغ الكراء الإجمالي</td><td style={{fontSize:'18px', fontWeight:'900', color:'#1e3a8a'}}>{printedContract.total} دج</td></tr>
+                </tbody>
+              </table>
+
+              <div className="signatures" style={{marginTop:'120px'}}>
+                <div className="sig-box">توقيع الزبون<div className="sig-space" style={{background:'transparent', border:'none', borderTop:'1px dashed #000', height:'60px'}}></div></div>
+                <div className="sig-box">ختم وتوقيع الوكالة<div className="sig-space" style={{background:'transparent', border:'none', borderTop:'1px dashed #000', height:'60px'}}></div></div>
+              </div>
+              <div className="page-num">3 / 3</div>
+            </div>
+          </>
         )}
       </div>
     </div>
