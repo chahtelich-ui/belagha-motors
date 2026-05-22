@@ -48,28 +48,24 @@ export default function App() {
     let extractedBirthDate = "";
     let extractedIssueDate = "";
 
-    // 1. استخراج رقم الرخصة (18 رقم)
     const licenseRegex = /\b\d{18}\b/;
     const licenseMatch = rawText.match(licenseRegex);
     if (licenseMatch) extractedLicense = licenseMatch[0];
 
-    // 2. استخراج التواريخ
     const dateRegex = /\b\d{2}[./-]\d{2}[./-]\d{4}\b/g;
     const datesMatch = rawText.match(dateRegex);
     if (datesMatch && datesMatch.length >= 1) {
-      extractedBirthDate = datesMatch[0].replace(/-/g, '.'); // تاريخ الميلاد غالباً هو الأول
+      extractedBirthDate = datesMatch[0].replace(/-/g, '.');
       if (datesMatch.length >= 2) {
-        extractedIssueDate = datesMatch[1].replace(/-/g, '.'); // تاريخ الإصدار غالباً هو الثاني
+        extractedIssueDate = datesMatch[1].replace(/-/g, '.');
       }
     }
 
-    // 3. استخراج الاسم (تجاهل الكلمات الإدارية الجزائرية)
-    const ignoreWords = ["REPUBLIQUE", "ALGERIENNE", "DEMOCRATIQUE", "POPULAIRE", "PERMIS", "CONDUITE", "MINISTERE", "TRANSPORTS", "WILAYA", "DAIRA", "COMMUNE", "NOM", "PRENOM", "NE", "LE", "A", "FAIT", "VALABLE"];
+    const ignoreWords = ["REPUBLIQUE", "ALGERIENNE", "DEMOCRATIQUE", "POPULAIRE", "PERMIS", "CONDUITE", "MINISTERE", "TRANSPORTS", "WILAYA", "DAIRA", "COMMUNE", "NOM", "PRENOM", "NE", "LE", "A", "FAIT", "VALABLE", "DZ"];
     const lines = rawText.toUpperCase().split('\n');
     const validNameLines = [];
 
     lines.forEach(line => {
-      // تنظيف السطر من الرموز والأرقام
       let cleanLine = line.replace(/[^A-Z\s]/g, '').trim();
       if (cleanLine.length > 3) {
         let isAdministrative = false;
@@ -78,7 +74,6 @@ export default function App() {
       }
     });
 
-    // دمج أول سطرين صالحين كاسم ولقب
     if (validNameLines.length > 0) extractedName = validNameLines.slice(0, 2).join(' ');
 
     setContractForm(prev => ({
@@ -112,7 +107,6 @@ export default function App() {
     }
   };
 
-  // --- دوال الكاميرا والرفع ---
   const startCamera = async (mode) => {
     setCameraMode(mode);
     try {
@@ -158,6 +152,9 @@ export default function App() {
     if (!contractForm.selectedCarId) return alert("يرجى اختيار مركبة.");
     const targetCar = fleet.find(car => car.id === contractForm.selectedCarId);
     
+    // تحديث الأسطول وهمياً
+    setFleet(fleet.map(car => car.id === contractForm.selectedCarId ? { ...car, status: 'rented' } : car));
+
     setPrintedContract({
       ...contractForm, carDetails: targetCar, days: calculatedDays || 1, total: calculatedTotal, photo: tenantPhoto,
       dateString: new Date().toLocaleDateString('fr-FR')
@@ -169,7 +166,6 @@ export default function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* ستايل الطباعة الآمن لأبل */}
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
         * { font-family: 'Tajawal', sans-serif; box-sizing: border-box; }
@@ -181,8 +177,6 @@ export default function App() {
           .print-only-layout { display: block !important; }
           .print-page { display: block !important; page-break-after: always !important; page-break-inside: avoid !important; padding: 10px; }
           .print-page:last-child { page-break-after: auto !important; }
-          .receipt-table { width: 100%; border-collapse: collapse; margin-top: 30px; }
-          .receipt-table td { border: 1px solid #000; padding: 12px; font-size: 14px; }
         }
       `}} />
 
@@ -239,7 +233,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div style={styles.grid} style={{marginTop:'20px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'15px'}}>
+                {/* تصحيح خطأ ستايل الـ Grid هنا لتفادي فشل البناء في Vercel */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'15px', marginTop:'20px'}}>
                   <div><label style={styles.label}>الاسم واللقب:</label><input required value={contractForm.tenantName} onChange={e=>setContractForm({...contractForm, tenantName: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>رقم الرخصة:</label><input required value={contractForm.licenseNumber} onChange={e=>setContractForm({...contractForm, licenseNumber: e.target.value})} style={styles.inputField}/></div>
                   <div><label style={styles.label}>الميلاد:</label><input required value={contractForm.birthDatePlace} onChange={e=>setContractForm({...contractForm, birthDatePlace: e.target.value})} style={styles.inputField}/></div>
@@ -250,7 +245,7 @@ export default function App() {
                     <label style={styles.label}>المركبة:</label>
                     <select required value={contractForm.selectedCarId} onChange={e=>setContractForm({...contractForm, selectedCarId: e.target.value})} style={styles.inputField}>
                       <option value="">-- اختر سيارة --</option>
-                      {fleet.map(car => <option key={car.id} value={car.id}>{car.brand} {car.model}</option>)}
+                      {fleet.map(car => <option key={car.id} value={car.id} disabled={car.status !== 'available'}>{car.brand} {car.model} ({car.plateNumber})</option>)}
                     </select>
                   </div>
                   <div><label style={styles.label}>الاستلام:</label><input type="datetime-local" required value={contractForm.startDate} onChange={e=>setContractForm({...contractForm, startDate: e.target.value})} style={styles.inputField}/></div>
@@ -268,12 +263,11 @@ export default function App() {
         </main>
       </div>
 
-      {/* منطقة الطباعة المحمية */}
       <div className="print-only-layout">
         {printedContract && (
           <div className="print-page">
             <h1 style={{textAlign:'center', fontSize:'24px', borderBottom:'2px solid #000', paddingBottom:'10px'}}>BELAGHA MOTORS - عقد كراء سيارة</h1>
-            <table style={{width:'100%', marginTop:'20px'}}>
+            <table style={{width:'100%', marginTop:'20px', borderCollapse: 'collapse'}}>
               <tbody>
                 <tr>
                   <td style={{width:'50%', border:'1px solid #000', padding:'15px', verticalAlign:'top'}}>
