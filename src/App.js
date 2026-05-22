@@ -166,7 +166,7 @@ export default function App() {
   return (
     <div style={styles.appContainer} dir="rtl">
       
-      {/* CSS الطباعة الأصلي الفخم المكون من 3 صفحات */}
+      {/* CSS الطباعة الفخم المكون من 3 صفحات + العلامة المائية */}
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
         * { font-family: 'Tajawal', sans-serif; box-sizing: border-box; }
@@ -178,11 +178,39 @@ export default function App() {
           .screen-only-layout, .no-print { display: none !important; }
           .print-only-layout { display: block !important; width: 100%; }
           
-          .print-page { display: block !important; page-break-after: always !important; page-break-inside: avoid !important; position: relative !important; padding: 15px !important; min-height: 270mm; }
+          .print-page { 
+            display: block !important; 
+            page-break-after: always !important; 
+            page-break-inside: avoid !important; 
+            position: relative !important; 
+            padding: 15px !important; 
+            min-height: 270mm; 
+            z-index: 1;
+          }
           .print-page:last-child { page-break-after: auto !important; }
+          
+          /* ستايل العلامة المائية الشفافة (تتوسط كل صفحة) */
+          .watermark-bg {
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 450px !important;
+            height: 450px !important;
+            opacity: 0.08 !important; /* شفافية العلامة المائية */
+            z-index: -1 !important;
+            background-image: url('/logo.png') !important;
+            background-size: contain !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            pointer-events: none;
+          }
           
           .doc-header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; align-items: center; }
           .doc-header p { margin: 2px 0; font-size: 11px; font-weight: bold; }
+          .header-logo { width: 70px; height: 70px; object-fit: contain; margin-left: 15px; -webkit-print-color-adjust: exact !important; }
           .doc-title { text-align: center; margin: 10px 0 20px 0; font-size: 18px; text-decoration: underline; font-weight: 900; }
           
           .info-grid { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 15px; }
@@ -211,7 +239,10 @@ export default function App() {
 
       <div className="screen-only-layout">
         <header style={styles.header}>
-          <h1 style={styles.logo}>BELAGHA MOTORS</h1>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="Logo" style={{ width: '40px', height: '40px', marginLeft: '10px' }} onError={(e) => e.target.style.display = 'none'} />
+            <h1 style={styles.logo}>BELAGHA MOTORS</h1>
+          </div>
           <div>
             <button style={activeTab === 'dashboard' ? styles.btnNavActive : styles.btnNav} onClick={() => setActiveTab('dashboard')}>الأسطول</button>
             <button style={activeTab === 'new-contract' ? styles.btnNavActive : styles.btnNav} onClick={() => setActiveTab('new-contract')}>+ عقد جديد</button>
@@ -296,15 +327,22 @@ export default function App() {
       </div>
 
       {/* ==============================================================
-          منطقة الطباعة الاحترافية (3 صفحات) المرجعة بالكامل
+          منطقة الطباعة الاحترافية (3 صفحات) مع اللوقو والعلامة المائية
       ============================================================== */}
       <div className="print-only-layout">
         {printedContract && (
           <>
             {/* الصفحة الأولى: العقد */}
             <div className="print-page">
+              <div className="watermark-bg"></div> {/* العلامة المائية */}
               <div className="doc-header">
-                <div><h1 style={{margin:0, fontSize:'22px', fontWeight:'900'}}>BELAGHA MOTORS</h1><p>LOCATION DE VOITURES</p></div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <img src="/logo.png" alt="Logo" className="header-logo" />
+                  <div>
+                    <h1 style={{margin:0, fontSize:'22px', fontWeight:'900'}}>BELAGHA MOTORS</h1>
+                    <p style={{margin:0, fontSize:'11px'}}>LOCATION DE VOITURES</p>
+                  </div>
+                </div>
                 <div style={{textAlign:'right'}}>
                   <p>📍 Constantine, Algérie</p><p>📞 0554 28 19 83</p><p>RC: 25/00-038169 A 15 | NIF: 1852501093731100000</p>
                 </div>
@@ -367,7 +405,14 @@ export default function App() {
 
             {/* الصفحة الثانية: الشروط */}
             <div className="print-page">
-              <div className="doc-header"><h1 style={{margin:0, fontSize:'18px'}}>BELAGHA MOTORS</h1><p>21/04/2026</p></div>
+              <div className="watermark-bg"></div> {/* العلامة المائية */}
+              <div className="doc-header">
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <img src="/logo.png" alt="Logo" className="header-logo" />
+                  <h1 style={{margin:0, fontSize:'18px', marginLeft:'10px'}}>BELAGHA MOTORS</h1>
+                </div>
+                <p>21/04/2026</p>
+              </div>
               <div className="terms-title">تتمة الالتزامات والشروط القانونية / Conditions Générales (2/2)</div>
 
               <div className="term-item">
@@ -415,12 +460,16 @@ export default function App() {
 
             {/* الصفحة الثالثة: الوصل المالي */}
             <div className="print-page">
+              <div className="watermark-bg"></div> {/* العلامة المائية */}
               <div className="doc-header" style={{textAlign:'center', display:'block', borderBottom:'none'}}>
-                <h1 style={{margin:0, fontSize:'24px', fontWeight:'900'}}>BELAGHA MOTORS FINANCE</h1>
-                <p style={{margin:'5px 0', fontSize:'12px'}}>QUITTANCE DE PAIEMENT / وصل استلام مالي</p>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '10px' }}>
+                  <img src="/logo.png" alt="Logo" className="header-logo" style={{ margin: '0 15px' }} />
+                  <h1 style={{margin:0, fontSize:'24px', fontWeight:'900'}}>BELAGHA MOTORS FINANCE</h1>
+                </div>
+                <p style={{margin:'5px 0', fontSize:'13px', fontWeight:'bold'}}>QUITTANCE DE PAIEMENT / وصل استلام مالي</p>
               </div>
 
-              <table className="receipt-table" style={{marginTop:'40px'}}>
+              <table className="receipt-table" style={{marginTop:'30px'}}>
                 <tbody>
                   <tr><td className="bg-gray">التاريخ والوقت / Date</td><td>{printedContract.dateString}</td></tr>
                   <tr><td className="bg-gray">استلمنا من السيد(ة) / Client</td><td>{printedContract.tenantName}</td></tr>
@@ -430,7 +479,7 @@ export default function App() {
                 </tbody>
               </table>
 
-              <div className="signatures" style={{marginTop:'120px'}}>
+              <div className="signatures" style={{marginTop:'100px'}}>
                 <div className="sig-box">توقيع الزبون<div className="sig-space" style={{background:'transparent', border:'none', borderTop:'1px dashed #000', height:'60px'}}></div></div>
                 <div className="sig-box">ختم وتوقيع الوكالة<div className="sig-space" style={{background:'transparent', border:'none', borderTop:'1px dashed #000', height:'60px'}}></div></div>
               </div>
@@ -445,8 +494,8 @@ export default function App() {
 
 const styles = {
   appContainer: { background: '#f8fafc', minHeight: '100vh', paddingBottom: '40px', color: '#0f172a' },
-  header: { background: '#ffffff', padding: '20px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' },
-  logo: { fontSize: '24px', margin: 0, fontWeight: '900', color: '#0f172a' },
+  header: { background: '#ffffff', padding: '15px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' },
+  logo: { fontSize: '20px', margin: 0, fontWeight: '900', color: '#0f172a' },
   btnNav: { background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginLeft:'10px' },
   btnNavActive: { background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginLeft:'10px' },
   loadingBanner: { background: '#8b5cf6', color: 'white', textAlign: 'center', padding: '12px', fontWeight: 'bold' },
